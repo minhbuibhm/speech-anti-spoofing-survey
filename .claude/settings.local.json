@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -la \"e:/minhbh/HCMUT/projects/252-internship-1/\"*.*)"
+    ]
+  }
+}
