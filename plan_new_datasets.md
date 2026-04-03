@@ -50,6 +50,16 @@ eval_open = ds['open_set_eval']
 - HF audio column returns `{'array': np.array, 'sampling_rate': int}` — use `sample['path']['array']`
 - May need `trust_remote_code=True` if dataset uses custom loading script
 
+**Progress:**
+- [x] Cells added to `survey.ipynb` (7.0–7.4)
+- [x] 7.0 — Load dataset from HF, print label distribution per split
+- [x] 7.1 — Helper functions: `echofake_to_wav_tensor` (HF audio → tensor), `predict_aasist_wav`, `predict_lcnn_wav` (in-memory inference, no file I/O)
+- [x] 7.2 — AASIST eval on both `closed_set_eval` + `open_set_eval`, stores `categories` for per-label breakdown
+- [x] 7.3 — LFCC+LCNN eval on both splits
+- [x] 7.4 — Per-category EER table (B vs RB / F / RF), cross-dataset summary (ASV19 + ASV21 + EchoFake), save `.npz`
+- [ ] Run on Kaggle — verify label names match (may need to adjust `'replay'`/`'fake'`/`'replayed_fake'` in 7.4 after seeing actual label strings from 7.0)
+- [ ] Check if HF audio column name is `'path'` or `'audio'` — adjust `echofake_to_wav_tensor` if needed
+
 ---
 
 ## Part 8 — ASVspoof 5 (2024)
