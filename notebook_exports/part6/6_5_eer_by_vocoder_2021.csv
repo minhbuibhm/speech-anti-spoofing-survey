@@ -1,0 +1,6 @@
+vocoder,n_spoof,AASIST,LFCC+LCNN
+neural_vocoder_autoregressive,114342,49.23,49.7
+neural_vocoder_nonautoregressive,90519,48.85,49.48
+traditional_vocoder,206913,47.8,49.31
+unknown,21645,48.09,48.71
+waveform_concatenation,8472,48.48,48.78

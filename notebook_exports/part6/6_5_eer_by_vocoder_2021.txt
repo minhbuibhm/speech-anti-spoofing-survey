@@ -1,0 +1,9 @@
+EER (%) by Vocoder Type — ASVspoof 2021 DF
+============================================================
+                            Vocoder  N_spoof       AASIST    LFCC+LCNN
+----------------------------------------------------------------------
+      neural_vocoder_autoregressive  114,342       49.23%       49.70%
+   neural_vocoder_nonautoregressive   90,519       48.85%       49.48%
+                traditional_vocoder  206,913       47.80%       49.31%
+                            unknown   21,645       48.09%       48.71%
+             waveform_concatenation    8,472       48.48%       48.78%

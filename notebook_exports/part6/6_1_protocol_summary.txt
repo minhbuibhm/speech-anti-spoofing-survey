@@ -1,0 +1,6 @@
+ASVspoof 2019 LA: 71,237 utterances
+  Attacks: ['A07', 'A08', 'A09', 'A10', 'A11', 'A12', 'A13', 'A14', 'A15', 'A16', 'A17', 'A18', 'A19', 'bonafide']
+
+ASVspoof 2021 DF: 611,829 utterances
+  Codecs:   ['high_m4a', 'high_mp3', 'high_ogg', 'low_m4a', 'low_mp3', 'low_ogg', 'mp3m4a', 'nocodec', 'oggm4a']
+  Vocoders: ['bonafide', 'neural_vocoder_autoregressive', 'neural_vocoder_nonautoregressive', 'traditional_vocoder', 'unknown', 'waveform_concatenation']

@@ -1,0 +1,3 @@
+pair,model_1,model_2,errors_model_1,errors_model_2,both_wrong,only_model_1,only_model_2,overlap_ratio_percent
+AASIST vs LFCC+LCNN,AASIST,LFCC+LCNN,3273,13990,572,2701,13418,4.1
+AASIST vs AASIST-L,AASIST,AASIST-L,3273,4805,2317,956,2488,48.2

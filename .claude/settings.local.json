@@ -1,7 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "Bash(ls -la \"e:/minhbh/HCMUT/projects/252-internship-1/\"*.*)"
+      "Bash(ls -la \"e:/minhbh/HCMUT/projects/252-internship-1/\"*.*)",
+      "Bash(python -c ':*)",
+      "Bash(python e:/minhbh/HCMUT/projects/252-internship-1/find_df2021.py)",
+      "Bash(python -c \"import json,sys;sys.stdout.reconfigure\\(encoding='utf-8'\\);nb=json.load\\(open\\('e:/minhbh/HCMUT/projects/252-internship-1/survey.ipynb',encoding='utf-8'\\)\\);print\\(''.join\\(nb['cells'][39]['source']\\)\\)\")",
+      "Bash(python -c \"import json,sys;sys.stdout.reconfigure\\(encoding='utf-8'\\);nb=json.load\\(open\\('e:/minhbh/HCMUT/projects/252-internship-1/survey.ipynb',encoding='utf-8'\\)\\);c37=nb['cells'][37];print\\(''.join\\(c37['source'][-20:]\\)\\)\")"
     ]
   }
 }

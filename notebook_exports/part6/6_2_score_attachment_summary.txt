@@ -1,0 +1,12 @@
+✅ AASIST: 71,237 scores matched protocol (71,237)
+✅ AASIST-L: 71,237 scores matched protocol (71,237)
+✅ AASIST3: 71,237 scores matched protocol (71,237)
+✅ LFCC+LCNN: 71,237 scores matched protocol (71,237)
+
+📂 Found 458,871 files in DF_FLAC_DIR
+   Protocol: 611,829 → Filtered: 458,871
+✅ AASIST: 458,868 scores (dropped 3 rows for decode errors)
+✅ LFCC+LCNN: 458,868 scores — exact match
+
+df_2019 columns: ['speaker', 'utt_id', 'attack', 'label', 'score_AASIST', 'score_AASIST-L', 'score_AASIST3', 'score_LFCC+LCNN']
+df_2021 columns: ['speaker', 'utt_id', 'codec', 'source', 'attack', 'label', 'vocoder', 'score_AASIST', 'score_LFCC+LCNN']

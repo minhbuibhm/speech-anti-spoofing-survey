@@ -1,4 +1,5 @@
 TODO List
+
 [x] Read the main survey paper (Li et al., 2024) and the PMC survey (Zhang et al., 2025) to build a solid overview of the field
 [x] Read AASIST, WavLM, and Wav2Vec2+AASIST papers to understand the SOTA architectures
 [x] Set up environment and pre-trained models, download ASVspoof 2019 LA dataset.

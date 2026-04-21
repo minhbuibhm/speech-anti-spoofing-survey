@@ -1,0 +1,9 @@
+✅ ALL_RESULTS loaded from: /kaggle/input/datasets/minhbhm/asvspoof19-results/all_results_asvspooft_19.pkl
+   AASIST           EER = 4.59%
+   AASIST-L         EER = 6.74%
+   LFCC+LCNN        EER = 19.64%
+   AASIST3          EER = 79.19%
+
+✅ RESULTS_2021 loaded (2 models):
+   AASIST           EER = 17.70%
+   LFCC+LCNN        EER = 33.81%
