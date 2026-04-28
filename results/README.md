@@ -15,6 +15,8 @@ results/
 │   └── results.pkl                           # eval scores for 2 models on ASVspoof 2021 DF
 ├── asvspoof5/
 │   └── results.pkl                           # eval scores for 4 models on ASVspoof 5 (2024)
+├── in_the_wild/
+│   └── results.pkl                           # eval scores for 6 models on In-the-Wild (pending)
 ├── checkpoints/
 │   └── lfcc_lcnn/
 │       ├── lfcc_lcnn.pth                     # trained weights (~407 KB)
@@ -98,6 +100,29 @@ Evaluation on **ASVspoof 5 (2024)** Track 1 eval set.
 > ASVspoof 5 is the hardest generalization test: attacks are more diverse and
 > include real-world codec/compression conditions. AASIST and AASIST-L degrade
 > severely (EER near 40%) while AASIST3's SSL front-end provides more robustness.
+
+---
+
+## `in_the_wild/results.pkl`
+
+Evaluation on **In-the-Wild** (Müller et al., 2022 — "Does Audio Deepfake Detection Generalize?").
+- Total records: **31,779 utterances**
+- Breakdown: 11,816 bonafide + 19,963 spoof
+- 58 speakers (celebrities and politicians)
+- 6 models to be evaluated
+
+| Key | Model | EER (%) |
+|-----|-------|---------|
+| `AASIST` | End-to-end graph attention | pending |
+| `AASIST-L` | Lightweight AASIST | pending |
+| `AASIST3` | Wav2Vec2 + KAN + AASIST | pending |
+| `LFCC+LCNN` | Hand-crafted features + CNN | pending |
+| `XLS-R+AASIST` | XLS-R 300M + AASIST back-end | pending |
+| `XLS-R+Nes2Net` | XLS-R 300M + Nes2Net-X back-end | pending |
+
+> In-the-Wild is the primary cross-domain generalization probe: audio scraped from
+> social media with unknown synthesis pipelines, real-world noise, and mixed codecs.
+> None of the models were trained on this distribution.
 
 ---
 
@@ -212,3 +237,23 @@ Track 2:
 
 Track 2 requires speaker-verification logic and a different output schema, so it is not
 included in the current `results.pkl` survey format.
+
+### In-the-Wild
+
+In-the-Wild (Muller et al., 2022, "Does Audio Deepfake Detection Generalize?") is a
+real-world deepfake corpus scraped from public social media. It covers 58 celebrity and
+politician speakers with unknown synthesis pipelines, mixed codecs, and real-world noise
+conditions. It is used as a cross-domain generalization probe: no model in this survey
+was trained on it.
+
+- **Total**: 31,779 utterances — 11,816 bonafide + 19,963 spoof
+- **Kaggle slug**: `abdallamohamed312/in-the-wild-audio-deepfake`
+
+High-level structure:
+
+- `meta.csv` — metadata with columns `file`, `speaker`, `label`
+- flat audio directory (`release_in_the_wild/` or `audio/`) of WAV files at 16 kHz
+
+Protocol format: `meta.csv` row with `label='bona-fide'` maps to bonafide (1); any
+other value (e.g. `'spoof'`) maps to spoof (0). The parser resolves audio paths by
+relative path, filename, and stem to tolerate Kaggle layout variations.
