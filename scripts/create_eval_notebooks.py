@@ -124,8 +124,15 @@ def partial_path(output_dir: Path, model_name: str) -> Path:
     return output_dir / f"{safe}.partial.npz"
 
 
-def load_partial(output_dir: Path, model_name: str) -> dict | None:
+def load_partial(output_dir: Path, model_name: str, fallback_dirs: list[Path] | None = None) -> dict | None:
     path = partial_path(output_dir, model_name)
+    if not path.exists():
+        for fb_dir in (fallback_dirs or []):
+            candidate = partial_path(fb_dir, model_name)
+            if candidate.exists():
+                path = candidate
+                print(f"{model_name}: resuming partial from input dataset: {path}")
+                break
     if not path.exists():
         return None
     data = np.load(path, allow_pickle=True)
@@ -385,6 +392,7 @@ def patch_fairseq_for_python312(fairseq_dir: Path) -> None:
     if n_replacements:
         print(f"patched {n_replacements} fairseq dataclass defaults for Python 3.12: {configs_path}")
     patch_fairseq_hydra_init_for_default_factory(fairseq_dir)
+    patch_fairseq_numpy_aliases(fairseq_dir)
 
 
 def patch_fairseq_hydra_init_for_default_factory(fairseq_dir: Path) -> None:
@@ -487,6 +495,37 @@ def patch_dataclass_mutable_defaults(path: Path) -> int:
     if text != original:
         path.write_text(text, encoding="utf-8")
     return n_total
+
+
+def patch_fairseq_numpy_aliases(fairseq_dir: Path) -> None:
+    """Replace removed numpy scalar type aliases across the fairseq bundle.
+
+    NumPy 1.24 removed np.float, np.int, np.bool, np.complex, np.object, np.str.
+    The pinned fairseq snapshot still uses these in several files (e.g. indexed_dataset.py).
+    """
+    import re
+    _aliases = [
+        (re.compile(r'\bnp\.float\b'), 'np.float64'),
+        (re.compile(r'\bnp\.int\b'), 'np.int_'),
+        (re.compile(r'\bnp\.bool\b'), 'np.bool_'),
+        (re.compile(r'\bnp\.complex\b'), 'np.complex128'),
+        (re.compile(r'\bnp\.object\b'), 'object'),
+        (re.compile(r'\bnp\.str\b'), 'np.str_'),
+    ]
+    total = 0
+    for py_file in fairseq_dir.rglob("*.py"):
+        try:
+            text = py_file.read_text(encoding="utf-8")
+        except Exception:
+            continue
+        original = text
+        for pattern, replacement in _aliases:
+            text = pattern.sub(replacement, text)
+        if text != original:
+            py_file.write_text(text, encoding="utf-8")
+            total += 1
+    if total:
+        print(f"patched numpy deprecated aliases in {total} fairseq files")
 
 
 def find_or_download_xlsr_300m() -> Path:
@@ -831,6 +870,7 @@ def evaluate_model_on_dataframe(
     force_eval: bool = False,
     partial_save_every: int = 5000,
     num_workers: int = 2,
+    partial_input_dirs: list[Path] | None = None,
 ) -> dict:
     """Evaluate one model on local files with partial resume and unified pkl writes."""
     if model_name in results and not force_eval:
@@ -838,7 +878,7 @@ def evaluate_model_on_dataframe(
         return results[model_name]
 
     entry = MODEL_REGISTRY[model_name]
-    partial = load_partial(output_dir, model_name)
+    partial = load_partial(output_dir, model_name, partial_input_dirs)
     scores, labels, utt_ids = [], [], []
     completed = set()
     if partial:
@@ -909,6 +949,7 @@ def evaluate_models_compound(
     force_eval: dict[str, bool] | None = None,
     partial_save_every: int = 5000,
     num_workers: int = 2,
+    partial_input_dirs: list[Path] | None = None,
 ) -> None:
     """Run multiple models in one pass over the same data loader.
 
@@ -937,7 +978,7 @@ def evaluate_models_compound(
     partials = {}
     completed = {}
     for name in pending:
-        partial = load_partial(output_dir, name)
+        partial = load_partial(output_dir, name, partial_input_dirs)
         if partial:
             partials[name] = partial
             completed[name] = set(partial["utt_ids"])
@@ -1024,6 +1065,7 @@ def run_eval_plan(
     partial_save_every: int = 5000,
     num_workers: int = 2,
     compound_enabled: bool = False,
+    partial_input_dirs: list[Path] | None = None,
 ) -> None:
     """Schedule single-model and compound runs for the configured ENABLED_MODELS.
 
@@ -1046,6 +1088,7 @@ def run_eval_plan(
                     force_eval=force_eval,
                     partial_save_every=partial_save_every,
                     num_workers=num_workers,
+                    partial_input_dirs=partial_input_dirs,
                 )
                 grouped.update(members)
     for name in enabled_models:
@@ -1060,6 +1103,7 @@ def run_eval_plan(
             force_eval=force_eval.get(name, False),
             partial_save_every=partial_save_every,
             num_workers=num_workers,
+            partial_input_dirs=partial_input_dirs,
         )
 '''
 
@@ -1087,6 +1131,12 @@ SMOKE_TEST_N = None
 PARTIAL_SAVE_EVERY = 5000
 NUM_WORKERS = 2
 RUN_COMPOUND_SSL_MODELS = False
+# Directories to search for *.partial.npz when /kaggle/working/ was lost after session expiry.
+# Upload the saved partial files as a Kaggle dataset and set the path here.
+PARTIAL_INPUT_DIRS = [
+    Path("/kaggle/input/datasets/minhbhm/sdd-partials-asv19"),
+    Path("/kaggle/input/sdd-partials-asv19"),
+]
 
 
 def locate_asvspoof2019_la() -> dict:
@@ -1172,6 +1222,10 @@ SMOKE_TEST_N = None
 PARTIAL_SAVE_EVERY = 10000
 NUM_WORKERS = 2
 RUN_COMPOUND_SSL_MODELS = False
+PARTIAL_INPUT_DIRS = [
+    Path("/kaggle/input/datasets/minhbhm/sdd-partials-asv21"),
+    Path("/kaggle/input/sdd-partials-asv21"),
+]
 
 
 def locate_asvspoof2021_df() -> dict:
@@ -1277,6 +1331,10 @@ SMOKE_TEST_N = None
 PARTIAL_SAVE_EVERY = 5000
 NUM_WORKERS = 2
 RUN_COMPOUND_SSL_MODELS = False
+PARTIAL_INPUT_DIRS = [
+    Path("/kaggle/input/datasets/minhbhm/sdd-partials-itw"),
+    Path("/kaggle/input/sdd-partials-itw"),
+]
 
 
 def locate_in_the_wild() -> dict:
@@ -1412,6 +1470,10 @@ ENABLED_MODELS = ["AASIST", "LFCC+LCNN", "AASIST3", "AASIST-L", "XLS-R+AASIST", 
 PARTIAL_SAVE_EVERY = 5000
 NUM_WORKERS = 2
 RUN_COMPOUND_SSL_MODELS = False
+PARTIAL_INPUT_DIRS = [
+    Path("/kaggle/input/datasets/minhbhm/sdd-partials-asv5"),
+    Path("/kaggle/input/sdd-partials-asv5"),
+]
 
 
 def asv5_prefix_for_split(split: str) -> str:
@@ -1733,6 +1795,7 @@ def evaluate_asv5_hf_tar_model(
     output_dir: Path,
     force_eval: bool = False,
     partial_save_every: int = 5000,
+    partial_input_dirs: list[Path] | None = None,
 ):
     """Evaluate ASVspoof 5 by reading FLAC bytes directly from HF tar shards."""
     if model_name in results and not force_eval:
@@ -1744,7 +1807,7 @@ def evaluate_asv5_hf_tar_model(
     entry = MODEL_REGISTRY[model_name]
     model = entry["loader"]()
 
-    partial = load_partial(output_dir, model_name)
+    partial = load_partial(output_dir, model_name, partial_input_dirs)
     scores, labels, utt_ids = [], [], []
     completed = set()
     if partial:
@@ -2050,6 +2113,7 @@ def evaluate_asv5_hf_webdataset_model(
     output_dir: Path,
     force_eval: bool = False,
     partial_save_every: int = 5000,
+    partial_input_dirs: list[Path] | None = None,
 ):
     """Evaluate ASVspoof 5 from the HF WebDataset stream. Local extracted files are faster."""
     if model_name in results and not force_eval:
@@ -2068,7 +2132,7 @@ def evaluate_asv5_hf_webdataset_model(
     entry = MODEL_REGISTRY[model_name]
     model = entry["loader"]()
 
-    partial = load_partial(output_dir, model_name)
+    partial = load_partial(output_dir, model_name, partial_input_dirs)
     scores, labels, utt_ids = [], [], []
     completed = set()
     if partial:
@@ -2138,6 +2202,7 @@ run_eval_plan(
     partial_save_every=PARTIAL_SAVE_EVERY,
     num_workers=NUM_WORKERS,
     compound_enabled=RUN_COMPOUND_SSL_MODELS,
+    partial_input_dirs=PARTIAL_INPUT_DIRS,
 )
 
 save_results_pickle(results, OUTPUT_PKL)
@@ -2159,6 +2224,7 @@ if RESOLVED_ASV5_SOURCE == "local":
         partial_save_every=PARTIAL_SAVE_EVERY,
         num_workers=NUM_WORKERS,
         compound_enabled=RUN_COMPOUND_SSL_MODELS,
+        partial_input_dirs=PARTIAL_INPUT_DIRS,
     )
 elif RESOLVED_ASV5_SOURCE == "hf_tar":
     ASV5_HF_TAR_PROTOCOL = load_asv5_hf_tar_protocol(ASV5_SPLIT)
@@ -2171,6 +2237,7 @@ elif RESOLVED_ASV5_SOURCE == "hf_tar":
             output_dir=OUTPUT_DIR,
             force_eval=FORCE_EVAL.get(model_name, False),
             partial_save_every=PARTIAL_SAVE_EVERY,
+            partial_input_dirs=PARTIAL_INPUT_DIRS,
         )
 elif RESOLVED_ASV5_SOURCE == "hf_webdataset":
     ASV5_HF_PROTOCOL = load_asv5_hf_protocol(ASV5_SPLIT)
@@ -2184,6 +2251,7 @@ elif RESOLVED_ASV5_SOURCE == "hf_webdataset":
             output_dir=OUTPUT_DIR,
             force_eval=FORCE_EVAL.get(model_name, False),
             partial_save_every=PARTIAL_SAVE_EVERY,
+            partial_input_dirs=PARTIAL_INPUT_DIRS,
         )
 else:
     raise ValueError(f"Unknown RESOLVED_ASV5_SOURCE={RESOLVED_ASV5_SOURCE}")
