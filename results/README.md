@@ -10,13 +10,13 @@ All scores are produced by models trained/evaluated on Kaggle (GPU: P100/T4).
 ```
 results/
 ├── asvspoof19/
-│   └── results.pkl                           # eval scores for 4 models on ASVspoof 2019 LA
+│   └── results.pkl                           # eval scores for 4 models on ASVspoof 2019 LA, 2 pending
 ├── asvspoof21/
-│   └── results.pkl                           # eval scores for 2 models on ASVspoof 2021 DF
+│   └── results.pkl                           # eval scores for 4 models on ASVspoof 2021 DF, 2 pending
 ├── asvspoof5/
-│   └── results.pkl                           # eval scores for 4 models on ASVspoof 5 (2024)
+│   └── results.pkl                           # eval scores for 4 models on ASVspoof 5 (2024), 2 pending
 ├── in_the_wild/
-│   └── results.pkl                           # eval scores for 6 models on In-the-Wild (pending)
+│   └── results.pkl                           # eval scores for 4 models on In-the-Wild, 2 pending
 ├── checkpoints/
 │   └── lfcc_lcnn/
 │       ├── lfcc_lcnn.pth                     # trained weights (~407 KB)
@@ -41,11 +41,18 @@ Each `results.pkl` is a Python `dict` with the following structure:
 }
 ```
 
-Load with:
+Load with NumPy 1.x / 2.x pickle compatibility:
 ```python
 import pickle
+
+class NumpyCompatUnpickler(pickle.Unpickler):
+    def find_class(self, module, name):
+        if module.startswith("numpy._core"):
+            module = module.replace("numpy._core", "numpy.core", 1)
+        return super().find_class(module, name)
+
 with open("results/asvspoof19/results.pkl", "rb") as f:
-    results = pickle.load(f)
+    results = NumpyCompatUnpickler(f).load()
 ```
 
 ---
@@ -55,7 +62,7 @@ with open("results/asvspoof19/results.pkl", "rb") as f:
 Evaluation on **ASVspoof 2019 LA** eval set.
 - Total records: **71,237 utterances**
 - Breakdown: 7,355 bonafide + 63,882 spoof
-- 4 models evaluated
+- 4 models evaluated, 2 methods pending
 
 | Key | Model | EER (%) |
 |-----|-------|---------|
@@ -63,6 +70,8 @@ Evaluation on **ASVspoof 2019 LA** eval set.
 | `AASIST-L` | Lightweight AASIST | 6.74 |
 | `AASIST3` | Wav2Vec2 + KAN + AASIST | 20.83 |
 | `LFCC+LCNN` | Hand-crafted features + CNN | 19.64 |
+| `XLS-R+AASIST` | XLS-R 300M + AASIST back-end | pending |
+| `XLS-R+Nes2Net` | XLS-R 300M + Nes2Net-X back-end | pending |
 
 ---
 
@@ -71,12 +80,16 @@ Evaluation on **ASVspoof 2019 LA** eval set.
 Evaluation on **ASVspoof 2021 DF** eval set.
 - Total records: **458,868 utterances**
 - Breakdown: 16,977 bonafide + 441,891 spoof
-- 2 models evaluated so far (AASIST-L and AASIST3 pending)
+- 4 models evaluated, 2 methods pending
 
 | Key | Model | EER (%) |
 |-----|-------|---------|
 | `AASIST` | End-to-end graph attention | 17.70 |
+| `AASIST-L` | Lightweight AASIST | 19.13 |
+| `AASIST3` | Wav2Vec2 + KAN + AASIST | 29.18 |
 | `LFCC+LCNN` | Hand-crafted features + CNN | 33.81 |
+| `XLS-R+AASIST` | XLS-R 300M + AASIST back-end | pending |
+| `XLS-R+Nes2Net` | XLS-R 300M + Nes2Net-X back-end | pending |
 
 > The large EER increase from 2019 → 2021 is expected: ASVspoof 2021 DF applies
 > lossy codec compression which destroys the spectral artifacts that both models rely on.
@@ -88,7 +101,7 @@ Evaluation on **ASVspoof 2021 DF** eval set.
 Evaluation on **ASVspoof 5 (2024)** Track 1 eval set.
 - Total records: **140,950 utterances**
 - Breakdown: 31,334 bonafide + 109,616 spoof
-- 4 models evaluated
+- 4 models evaluated, 2 methods pending
 
 | Key | Model | EER (%) |
 |-----|-------|---------|
@@ -96,6 +109,8 @@ Evaluation on **ASVspoof 5 (2024)** Track 1 eval set.
 | `AASIST-L` | Lightweight AASIST | 39.47 |
 | `AASIST3` | Wav2Vec2 + KAN + AASIST | 19.03 |
 | `LFCC+LCNN` | Hand-crafted features + CNN | 22.60 |
+| `XLS-R+AASIST` | XLS-R 300M + AASIST back-end | pending |
+| `XLS-R+Nes2Net` | XLS-R 300M + Nes2Net-X back-end | pending |
 
 > ASVspoof 5 is the hardest generalization test: attacks are more diverse and
 > include real-world codec/compression conditions. AASIST and AASIST-L degrade
@@ -107,16 +122,20 @@ Evaluation on **ASVspoof 5 (2024)** Track 1 eval set.
 
 Evaluation on **In-the-Wild** (Müller et al., 2022 — "Does Audio Deepfake Detection Generalize?").
 - Total records: **31,779 utterances**
-- Breakdown: 11,816 bonafide + 19,963 spoof
+- Breakdown: 19,963 bonafide + 11,816 spoof
 - 58 speakers (celebrities and politicians)
-- 6 models to be evaluated
+- 4 models evaluated, 2 methods pending
+
+Note: the public dataset distribution is 19,963 real/genuine files and 11,816 fake/spoof files.
+If a local pickle reports the reverse under `labels`, that pickle was produced with inverted
+In-the-Wild label IDs and should be regenerated before using label-dependent metrics.
 
 | Key | Model | EER (%) |
 |-----|-------|---------|
-| `AASIST` | End-to-end graph attention | pending |
-| `AASIST-L` | Lightweight AASIST | pending |
-| `AASIST3` | Wav2Vec2 + KAN + AASIST | pending |
-| `LFCC+LCNN` | Hand-crafted features + CNN | pending |
+| `AASIST` | End-to-end graph attention | 41.79 |
+| `AASIST-L` | Lightweight AASIST | 45.28 |
+| `AASIST3` | Wav2Vec2 + KAN + AASIST | 40.12 |
+| `LFCC+LCNN` | Hand-crafted features + CNN | 70.23 |
 | `XLS-R+AASIST` | XLS-R 300M + AASIST back-end | pending |
 | `XLS-R+Nes2Net` | XLS-R 300M + Nes2Net-X back-end | pending |
 
@@ -246,7 +265,7 @@ politician speakers with unknown synthesis pipelines, mixed codecs, and real-wor
 conditions. It is used as a cross-domain generalization probe: no model in this survey
 was trained on it.
 
-- **Total**: 31,779 utterances — 11,816 bonafide + 19,963 spoof
+- **Total**: 31,779 utterances — 19,963 bonafide + 11,816 spoof
 - **Kaggle slug**: `abdallamohamed312/in-the-wild-audio-deepfake`
 
 High-level structure:

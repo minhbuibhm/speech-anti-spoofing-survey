@@ -1,16 +1,31 @@
 import pickle
 import numpy as np
 
-PKL_19 = "results/asvspoof19/results.pkl"
-PKL_21 = "results/asvspoof21/results.pkl"
+PKL_PATHS = [
+    "results/asvspoof19/results.pkl",
+    "results/asvspoof21/results.pkl",
+    "results/asvspoof5/results.pkl",
+    "results/in_the_wild/results.pkl",
+]
+
+
+class NumpyCompatUnpickler(pickle.Unpickler):
+    def find_class(self, module, name):
+        if module.startswith("numpy._core"):
+            module = module.replace("numpy._core", "numpy.core", 1)
+        return super().find_class(module, name)
+
+
+def load_pickle_compat(path: str):
+    with open(path, "rb") as f:
+        return NumpyCompatUnpickler(f).load()
 
 
 def inspect_pkl(path: str):
     print(f"\n{'='*60}")
     print(f"FILE: {path}")
     print("="*60)
-    with open(path, "rb") as f:
-        data = pickle.load(f)
+    data = load_pickle_compat(path)
 
     print(f"Type: {type(data)}")
 
@@ -35,5 +50,5 @@ def inspect_pkl(path: str):
 
 
 if __name__ == "__main__":
-    inspect_pkl(PKL_19)
-    inspect_pkl(PKL_21)
+    for path in PKL_PATHS:
+        inspect_pkl(path)

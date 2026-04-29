@@ -831,7 +831,7 @@ MODEL_REGISTRY = {
         "loader": load_aasist3_model,
         "dataset": WaveformDataset,
         "predict": predict_aasist3_batch,
-        "batch_size": 16,
+        "batch_size": 64,
     },
     "LFCC+LCNN": {
         "loader": load_lfcc_lcnn_model,
@@ -1121,7 +1121,7 @@ INPUT_RESULTS = [
 FORCE_EVAL = {
     "AASIST": False,
     "AASIST-L": False,
-    "AASIST3": True,
+    "AASIST3": False,
     "LFCC+LCNN": False,
     "XLS-R+AASIST": False,
     "XLS-R+Nes2Net": False,
@@ -1134,6 +1134,8 @@ RUN_COMPOUND_SSL_MODELS = False
 # Directories to search for *.partial.npz when /kaggle/working/ was lost after session expiry.
 # Upload the saved partial files as a Kaggle dataset and set the path here.
 PARTIAL_INPUT_DIRS = [
+    Path("/kaggle/input/datasets/minhbhm/sdd-survey/asvspoof19"),
+    Path("/kaggle/input/sdd-survey/asvspoof19"),
     Path("/kaggle/input/datasets/minhbhm/sdd-partials-asv19"),
     Path("/kaggle/input/sdd-partials-asv19"),
 ]
@@ -1223,6 +1225,8 @@ PARTIAL_SAVE_EVERY = 10000
 NUM_WORKERS = 2
 RUN_COMPOUND_SSL_MODELS = False
 PARTIAL_INPUT_DIRS = [
+    Path("/kaggle/input/datasets/minhbhm/sdd-survey/asvspoof21"),
+    Path("/kaggle/input/sdd-survey/asvspoof21"),
     Path("/kaggle/input/datasets/minhbhm/sdd-partials-asv21"),
     Path("/kaggle/input/sdd-partials-asv21"),
 ]
@@ -1332,6 +1336,8 @@ PARTIAL_SAVE_EVERY = 5000
 NUM_WORKERS = 2
 RUN_COMPOUND_SSL_MODELS = False
 PARTIAL_INPUT_DIRS = [
+    Path("/kaggle/input/datasets/minhbhm/sdd-survey/in_the_wild"),
+    Path("/kaggle/input/sdd-survey/in_the_wild"),
     Path("/kaggle/input/datasets/minhbhm/sdd-partials-itw"),
     Path("/kaggle/input/sdd-partials-itw"),
 ]
@@ -1471,6 +1477,8 @@ PARTIAL_SAVE_EVERY = 5000
 NUM_WORKERS = 2
 RUN_COMPOUND_SSL_MODELS = False
 PARTIAL_INPUT_DIRS = [
+    Path("/kaggle/input/datasets/minhbhm/sdd-survey/asvspoof5"),
+    Path("/kaggle/input/sdd-survey/asvspoof5"),
     Path("/kaggle/input/datasets/minhbhm/sdd-partials-asv5"),
     Path("/kaggle/input/sdd-partials-asv5"),
 ]
