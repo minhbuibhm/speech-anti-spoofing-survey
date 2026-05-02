@@ -296,13 +296,42 @@ SSL_AASIST_REPO_DIR = Path("/kaggle/working/SSL_Anti-spoofing")
 NES2NET_REPO_URL = "https://github.com/Liu-Tianchi/Nes2Net_ASVspoof_ITW.git"
 NES2NET_REPO_DIR = Path("/kaggle/working/Nes2Net_ASVspoof_ITW")
 XLSR_300M_URL = "https://dl.fbaipublicfiles.com/fairseq/wav2vec/xlsr2_300m.pt"
-
-
-def install_pkg(pip_name: str, import_name: str | None = None) -> None:
-    try:
-        importlib.import_module(import_name or pip_name)
-    except ImportError:
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "-q", pip_name])
+XLSR_300M_INPUT_CANDIDATES = [
+    Path("/kaggle/input/datasets/minhbhm/sdd-survey/checkpoints/xlsr/xlsr2_300m.pt"),
+    Path("/kaggle/input/datasets/minhbhm/sdd-survey/ssl_models/xlsr2_300m.pt"),
+    Path("/kaggle/input/sdd-survey/checkpoints/xlsr/xlsr2_300m.pt"),
+    Path("/kaggle/input/xlsr-300m/xlsr2_300m.pt"),
+]
+XLSR_300M_WORKING_CANDIDATES = [
+    Path("/kaggle/working/xlsr2_300m.pt"),
+]
+FAIRSEQ_COMMIT = "a54021305d6b3c4c5959ac9395135f63202db8f1"
+FAIRSEQ_REPO_URL = "https://github.com/pytorch/fairseq.git"
+FAIRSEQ_SRC_DIR = Path(f"/kaggle/working/fairseq-{FAIRSEQ_COMMIT}")
+NES2NET_CKPT_GDRIVE_ID = "1JFGv_2TONMnTLGbiOIuHFfMvuo4SIIpg"
+NES2NET_CKPT_WORKING_DIR = Path("/kaggle/working/wav2vec2_nes2net")
+NES2NET_CKPT_WORKING_PATH = NES2NET_CKPT_WORKING_DIR / "pretrained_nes2net.pth"
+XLSR_AASIST_CKPT_BASES = [
+    Path("/kaggle/input/datasets/minhbhm/sdd-survey/checkpoints/xlsr_aasist"),
+    Path("/kaggle/input/sdd-survey/checkpoints/xlsr_aasist"),
+    Path("/kaggle/input/xlsr-aasist-antispoofing"),
+]
+XLSR_AASIST_CKPT_NAMES = ["Best_LA_model_for_DF.pth", "Best_LA_model_for_LA.pth", "Best_LA_model_for_ITW.pth"]
+NES2NET_CKPT_BASES = [
+    Path("/kaggle/input/datasets/minhbhm/sdd-survey/checkpoints/wav2vec2_nes2net"),
+    Path("/kaggle/input/sdd-survey/checkpoints/wav2vec2_nes2net"),
+    Path("/kaggle/input/wav2vec2-nes2net"),
+    Path("/kaggle/input/nes2net-asvspoof-itw"),
+    NES2NET_CKPT_WORKING_DIR,
+    NES2NET_REPO_DIR,
+    Path("/kaggle/working"),
+]
+LFCC_CKPT_CANDIDATES = [
+    Path("/kaggle/input/datasets/minhbhm/sdd-survey/checkpoints/lfcc_lcnn/lfcc_lcnn.pth"),
+    Path("/kaggle/input/sdd-survey/checkpoints/lfcc_lcnn/lfcc_lcnn.pth"),
+    Path("/kaggle/working/checkpoints/lfcc_lcnn/lfcc_lcnn.pth"),
+    Path("results/checkpoints/lfcc_lcnn/lfcc_lcnn.pth"),
+]
 
 
 def _swap_sys_path(repo_dir: Path) -> None:
@@ -329,52 +358,88 @@ def ensure_nes2net_repo() -> Path:
 
 
 def ensure_repo_fairseq(repo_dir: Path) -> None:
-    """Install the repository-pinned fairseq when available.
+    """Install the fairseq snapshot required by the SSL front-ends.
 
-    The SSL repos were written against a specific fairseq snapshot. PyPI fairseq
-    can import but still be ABI/API-incompatible on Kaggle, so prefer the bundled
-    editable install and use PyPI only as a last resort.
+    Nes2Net does not always vendor fairseq, but it was written against the same
+    old snapshot as SSL_Anti-spoofing. Installing PyPI fairseq on Kaggle's
+    Python 3.12 fails on old omegaconf metadata, so we import a patched pinned
+    source tree directly instead of falling back to PyPI.
     """
-    candidates = [p for p in repo_dir.iterdir() if p.is_dir() and p.name.startswith("fairseq")]
-    if candidates:
-        fairseq_dir = candidates[0]
-        patch_fairseq_for_python312(fairseq_dir)
-        print(f"installing repo-pinned fairseq from {fairseq_dir}")
-        _swap_sys_path(fairseq_dir)
-        # Kaggle currently ships a recent pip that rejects old omegaconf metadata
-        # used by this fairseq snapshot. Downgrading pip and using the legacy
-        # resolver keeps the install reproducible without changing the repo code.
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "-q", "pip<24.1"])
-        subprocess.check_call([
-            sys.executable,
-            "-m",
-            "pip",
-            "install",
-            "-q",
-            "--use-deprecated=legacy-resolver",
-            "-e",
-            str(fairseq_dir),
-        ])
-        patch_fairseq_for_python312(fairseq_dir)
-        patch_hydra_for_python312()
-        _reset_module_namespace(["fairseq", "hydra", "omegaconf"])
-        importlib.invalidate_caches()
-        try:
-            import fairseq  # noqa: F401
-            print(f"fairseq import path: {fairseq.__file__}")
-        except ImportError as exc:
-            raise ImportError(
-                f"fairseq install finished but import still failed. "
-                f"fairseq_dir={fairseq_dir}, sys.path[0]={sys.path[0]}"
-            ) from exc
-        return
+    fairseq_dir = ensure_fairseq_source(repo_dir)
+    patch_fairseq_for_python312(fairseq_dir)
+    print(f"installing pinned fairseq from {fairseq_dir}")
+    _swap_sys_path(fairseq_dir)
 
-    install_pkg("fairseq")
+    # pip>=24.1 rejects the omegaconf 2.0.x metadata required by this fairseq
+    # snapshot. Keep old pip, but avoid building fairseq itself: the patched
+    # source tree is already on sys.path and the SSL loaders only need imports.
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "-q", "pip<24.1"])
+    subprocess.check_call([
+        sys.executable,
+        "-m",
+        "pip",
+        "install",
+        "-q",
+        "setuptools>=68,<70",
+        "wheel",
+        "cython",
+        "numpy",
+    ])
+    subprocess.check_call([
+        sys.executable,
+        "-m",
+        "pip",
+        "install",
+        "-q",
+        "bitarray",
+        "cffi",
+        "regex",
+        "sacrebleu==1.5.1",
+        "tqdm",
+        "PyYAML",
+        "antlr4-python3-runtime==4.8",
+    ])
+    subprocess.check_call([
+        sys.executable,
+        "-m",
+        "pip",
+        "install",
+        "-q",
+        "--no-deps",
+        "omegaconf==2.0.6",
+        "hydra-core==1.0.7",
+    ])
+
+    patch_fairseq_for_python312(fairseq_dir)
     patch_hydra_for_python312()
     _reset_module_namespace(["fairseq", "hydra", "omegaconf"])
     importlib.invalidate_caches()
-    import fairseq  # noqa: F401
-    print(f"fairseq import path: {fairseq.__file__}")
+    try:
+        import fairseq  # noqa: F401
+        print(f"fairseq import path: {fairseq.__file__}")
+    except Exception as exc:
+        raise RuntimeError(
+            f"fairseq install finished but import still failed. "
+            f"fairseq_dir={fairseq_dir}, sys.path[0]={sys.path[0]}"
+        ) from exc
+
+
+def ensure_fairseq_source(repo_dir: Path) -> Path:
+    """Return a local fairseq source tree pinned to the XLS-R-compatible commit."""
+    candidates = sorted(
+        p for p in repo_dir.iterdir()
+        if p.is_dir() and p.name.startswith("fairseq") and (p / "fairseq").exists()
+    )
+    if candidates:
+        return candidates[0]
+
+    if not FAIRSEQ_SRC_DIR.exists():
+        print(f"cloning pinned fairseq source: {FAIRSEQ_COMMIT}")
+        subprocess.check_call(["git", "clone", "-q", FAIRSEQ_REPO_URL, str(FAIRSEQ_SRC_DIR)])
+
+    # Re-checkout on every run so a reused Kaggle working directory cannot drift.
+    subprocess.check_call(["git", "-C", str(FAIRSEQ_SRC_DIR), "checkout", "-q", FAIRSEQ_COMMIT])
+    return FAIRSEQ_SRC_DIR
 
 
 def patch_fairseq_for_python312(fairseq_dir: Path) -> None:
@@ -384,13 +449,16 @@ def patch_fairseq_for_python312(fairseq_dir: Path) -> None:
     `common: CommonConfig = CommonConfig()`. Newer Python rejects that pattern.
     For this notebook we only rewrite config defaults to `field(default_factory=...)`.
     """
-    configs_path = fairseq_dir / "fairseq" / "dataclass" / "configs.py"
-    if not configs_path.exists():
-        return
-
-    n_replacements = patch_dataclass_mutable_defaults(configs_path)
-    if n_replacements:
-        print(f"patched {n_replacements} fairseq dataclass defaults for Python 3.12: {configs_path}")
+    patch_targets = [
+        fairseq_dir / "fairseq" / "dataclass" / "configs.py",
+        fairseq_dir / "fairseq" / "models" / "transformer" / "transformer_config.py",
+    ]
+    for patch_target in patch_targets:
+        if not patch_target.exists():
+            continue
+        n_replacements = patch_dataclass_mutable_defaults(patch_target)
+        if n_replacements:
+            print(f"patched {n_replacements} fairseq dataclass defaults for Python 3.12: {patch_target}")
     patch_fairseq_hydra_init_for_default_factory(fairseq_dir)
     patch_fairseq_numpy_aliases(fairseq_dir)
 
@@ -451,17 +519,6 @@ def patch_dataclass_mutable_defaults(path: Path) -> int:
     text = path.read_text(encoding="utf-8")
     original = text
 
-    if "from dataclasses import" in text and "field" not in text.split("from dataclasses import", 1)[1].split("\n", 1)[0]:
-        text = re.sub(
-            r"^(from dataclasses import )([^\n]+)$",
-            lambda m: m.group(1) + m.group(2).rstrip() + ", field",
-            text,
-            count=1,
-            flags=re.MULTILINE,
-        )
-    elif "from dataclasses import" not in text:
-        text = "from dataclasses import field\n" + text
-
     n_total = 0
     # Pattern: name: SomeConfig = SomeConfig()
     obj_pattern = re.compile(
@@ -477,6 +534,20 @@ def patch_dataclass_mutable_defaults(path: Path) -> int:
     )
     n_total += n_obj
 
+    # Pattern: name: SomeConfig = field(default=SomeConfig())
+    field_obj_pattern = re.compile(
+        r"^(?P<indent>\s*)(?P<name>\w+):\s+(?P<cls>[\w.]+)\s*=\s*field\(default=(?P=cls)\(\)\)\s*$",
+        flags=re.MULTILINE,
+    )
+    text, n_field_obj = field_obj_pattern.subn(
+        lambda m: (
+            f"{m.group('indent')}{m.group('name')}: {m.group('cls')} = "
+            f"field(default_factory={m.group('cls')})"
+        ),
+        text,
+    )
+    n_total += n_field_obj
+
     # Pattern: name: List[T] = [] / name: Dict[K, V] = {}
     list_pattern = re.compile(r"^(?P<indent>\s*)(?P<name>\w+):\s+List\[(?P<t>[^\]]+)\]\s*=\s*\[\]\s*$", flags=re.MULTILINE)
     text, n_list = list_pattern.subn(
@@ -491,6 +562,28 @@ def patch_dataclass_mutable_defaults(path: Path) -> int:
         text,
     )
     n_total += n_dict
+
+    if n_total:
+        # Add the import only when a rewrite actually needs field(...). This
+        # avoids touching unrelated files and keeps __future__ imports valid.
+        dataclasses_import = text.split("from dataclasses import", 1)
+        if len(dataclasses_import) == 2:
+            first_line = dataclasses_import[1].split("\n", 1)[0]
+            if "field" not in first_line:
+                text = re.sub(
+                    r"^(from dataclasses import )([^\n]+)$",
+                    lambda m: m.group(1) + m.group(2).rstrip() + ", field",
+                    text,
+                    count=1,
+                    flags=re.MULTILINE,
+                )
+        else:
+            future_imports = list(re.finditer(r"^from __future__ import [^\n]+\n", text, flags=re.MULTILINE))
+            if future_imports:
+                insert_at = future_imports[-1].end()
+                text = text[:insert_at] + "from dataclasses import field\n" + text[insert_at:]
+            else:
+                text = "from dataclasses import field\n" + text
 
     if text != original:
         path.write_text(text, encoding="utf-8")
@@ -530,14 +623,7 @@ def patch_fairseq_numpy_aliases(fairseq_dir: Path) -> None:
 
 def find_or_download_xlsr_300m() -> Path:
     """Locate or download the fairseq XLS-R 300M base SSL checkpoint."""
-    candidates = [
-        Path("/kaggle/input/datasets/minhbhm/sdd-survey/checkpoints/xlsr/xlsr2_300m.pt"),
-        Path("/kaggle/input/datasets/minhbhm/sdd-survey/ssl_models/xlsr2_300m.pt"),
-        Path("/kaggle/input/sdd-survey/checkpoints/xlsr/xlsr2_300m.pt"),
-        Path("/kaggle/input/xlsr-300m/xlsr2_300m.pt"),
-        Path("/kaggle/working/xlsr2_300m.pt"),
-    ]
-    for path in candidates:
+    for path in XLSR_300M_INPUT_CANDIDATES + XLSR_300M_WORKING_CANDIDATES:
         if path.exists():
             print(f"found XLS-R 300M base SSL: {path}")
             return path
@@ -562,14 +648,8 @@ def _link_xlsr_into(repo_dir: Path) -> None:
 
 def find_xlsr_aasist_checkpoint() -> Path:
     """Locate TakHemlata's pretrained Wav2Vec2-XLSR+AASIST anti-spoofing weights."""
-    bases = [
-        Path("/kaggle/input/datasets/minhbhm/sdd-survey/checkpoints/xlsr_aasist"),
-        Path("/kaggle/input/sdd-survey/checkpoints/xlsr_aasist"),
-        Path("/kaggle/input/xlsr-aasist-antispoofing"),
-    ]
-    names = ["Best_LA_model_for_DF.pth", "Best_LA_model_for_LA.pth", "Best_LA_model_for_ITW.pth"]
-    for base in bases:
-        for name in names:
+    for base in XLSR_AASIST_CKPT_BASES:
+        for name in XLSR_AASIST_CKPT_NAMES:
             if (base / name).exists():
                 return base / name
         if base.exists():
@@ -584,21 +664,47 @@ def find_xlsr_aasist_checkpoint() -> Path:
 
 def find_xlsr_nes2net_checkpoint() -> Path:
     """Locate Liu-Tianchi's pretrained wav2vec2+Nes2Net-X anti-spoofing weights."""
-    bases = [
-        Path("/kaggle/input/datasets/minhbhm/sdd-survey/checkpoints/wav2vec2_nes2net"),
-        Path("/kaggle/input/sdd-survey/checkpoints/wav2vec2_nes2net"),
-        Path("/kaggle/input/wav2vec2-nes2net"),
-        Path("/kaggle/input/nes2net-asvspoof-itw"),
-    ]
-    for base in bases:
+    def is_nes2net_checkpoint(path: Path) -> bool:
+        name = path.name.lower()
+        if name == "xlsr2_300m.pt":
+            return False
+        return (
+            name == "pretrained_nes2net.pth"
+            or "avg_ckpt" in name
+            or ("nes2net" in name and path.suffix.lower() in {".pth", ".pt"})
+        )
+
+    for base in NES2NET_CKPT_BASES:
         if base.exists():
-            for pattern in ("*avg_ckpt*.pth", "*.pth", "*.pt"):
+            for pattern in ("*avg_ckpt*.pth", "pretrained_nes2net.pth", "*Nes2Net*.pth", "*nes2net*.pth"):
                 for path in sorted(base.glob(pattern)):
-                    return path
+                    if is_nes2net_checkpoint(path):
+                        return path
+
+    # Prefer immutable Kaggle input datasets above. If the checkpoint was not
+    # attached, download the official Google Drive file into /kaggle/working.
+    # This matches the manual Colab/Kaggle command previously used for Nes2Net.
+    NES2NET_CKPT_WORKING_DIR.mkdir(parents=True, exist_ok=True)
+    try:
+        import gdown  # type: ignore
+    except ImportError:
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "-q", "gdown"])
+        import gdown  # type: ignore
+
+    print(f"downloading wav2vec2+Nes2Net checkpoint to {NES2NET_CKPT_WORKING_PATH}")
+    gdown.download(
+        id=NES2NET_CKPT_GDRIVE_ID,
+        output=str(NES2NET_CKPT_WORKING_PATH),
+        quiet=False,
+    )
+    if NES2NET_CKPT_WORKING_PATH.exists() and NES2NET_CKPT_WORKING_PATH.stat().st_size > 0:
+        return NES2NET_CKPT_WORKING_PATH
+
     raise FileNotFoundError(
         "wav2vec2+Nes2Net pretrained weights not found. "
-        "Upload Liu-Tianchi's averaged checkpoint as a Kaggle dataset under "
-        "/kaggle/input/datasets/minhbhm/sdd-survey/checkpoints/wav2vec2_nes2net/."
+        "Attach/upload Liu-Tianchi's averaged checkpoint as a Kaggle dataset under "
+        "/kaggle/input/datasets/minhbhm/sdd-survey/checkpoints/wav2vec2_nes2net/, "
+        f"or enable Internet so gdown can download Google Drive id {NES2NET_CKPT_GDRIVE_ID}."
     )
 
 
@@ -667,14 +773,15 @@ def load_xlsr_nes2net_model() -> nn.Module:
         _reset_module_namespace(["model_scripts"])
         from model_scripts.wav2vec2_Nes2Net_X import wav2vec2_Nes2Net_no_Res_w_allT  # type: ignore
         import argparse
-        # Defaults from the repo training command:
+        # Defaults from the repo CLI. SE_ratio uses nargs="+", so keep it as a
+        # one-item list; the model indexes SE_ratio[0] during construction.
         # --pool_func mean --SE_ratio 1 --Nes_ratio 8 8
         args = argparse.Namespace(
             n_output_logits=2,
             Nes_ratio=[8, 8],
             dilation=2,
             pool_func="mean",
-            SE_ratio=1,
+            SE_ratio=[1],
         )
         model = wav2vec2_Nes2Net_no_Res_w_allT(args, DEVICE).to(DEVICE)
         ckpt = find_xlsr_nes2net_checkpoint()
@@ -700,16 +807,107 @@ def predict_ssl_pair_batch(model, waves: torch.Tensor) -> np.ndarray:
 
 
 def find_lfcc_checkpoint() -> Path:
-    candidates = [
-        Path("/kaggle/input/datasets/minhbhm/sdd-survey/checkpoints/lfcc_lcnn/lfcc_lcnn.pth"),
-        Path("/kaggle/input/sdd-survey/checkpoints/lfcc_lcnn/lfcc_lcnn.pth"),
-        Path("/kaggle/working/checkpoints/lfcc_lcnn/lfcc_lcnn.pth"),
-        Path("results/checkpoints/lfcc_lcnn/lfcc_lcnn.pth"),
-    ]
-    for path in candidates:
+    for path in LFCC_CKPT_CANDIDATES:
         if path.exists():
             return path
     raise FileNotFoundError("LFCC+LCNN checkpoint was not found. Attach sdd-survey or copy lfcc_lcnn.pth.")
+
+
+def _first_existing(paths: list[Path]) -> Path | None:
+    for path in paths:
+        if path.exists():
+            return path
+    return None
+
+
+def _find_xlsr_aasist_checkpoint_no_download() -> Path | None:
+    for base in XLSR_AASIST_CKPT_BASES:
+        for name in XLSR_AASIST_CKPT_NAMES:
+            candidate = base / name
+            if candidate.exists():
+                return candidate
+        if base.exists():
+            for candidate in base.glob("*.pth"):
+                return candidate
+    return None
+
+
+def _find_nes2net_checkpoint_no_download() -> Path | None:
+    for base in NES2NET_CKPT_BASES:
+        if not base.exists():
+            continue
+        for pattern in ("*avg_ckpt*.pth", "pretrained_nes2net.pth", "*Nes2Net*.pth", "*nes2net*.pth"):
+            for candidate in sorted(base.glob(pattern)):
+                name = candidate.name.lower()
+                if name != "xlsr2_300m.pt":
+                    return candidate
+    return None
+
+
+def preflight_check_model_inputs(
+    enabled_models: list[str],
+    results: dict | None = None,
+    force_eval: dict[str, bool] | None = None,
+    require_kaggle_xlsr: bool = True,
+) -> None:
+    """Print model asset availability and fail early for missing required files."""
+    results = results or {}
+    force_eval = force_eval or {}
+    missing: list[str] = []
+    xlsr_input = _first_existing(XLSR_300M_INPUT_CANDIDATES)
+    xlsr_any = xlsr_input or _first_existing(XLSR_300M_WORKING_CANDIDATES)
+
+    print("model input preflight")
+    for model_name in enabled_models:
+        if model_name in results and not force_eval.get(model_name, False):
+            print(f"  OK   {model_name}: cached in results.pkl")
+            continue
+
+        if model_name in {"AASIST", "AASIST-L"}:
+            print(f"  INFO {model_name}: official weights are loaded from the cloned clovaai/aasist repo")
+        elif model_name == "AASIST3":
+            print("  INFO AASIST3: checkpoint is loaded through Hugging Face model MTUCI/AASIST3")
+        elif model_name == "LFCC+LCNN":
+            ckpt = _first_existing(LFCC_CKPT_CANDIDATES)
+            if ckpt:
+                print(f"  OK   LFCC+LCNN checkpoint: {ckpt}")
+            else:
+                missing.append("LFCC+LCNN checkpoint lfcc_lcnn.pth")
+        elif model_name == "XLS-R+AASIST":
+            ckpt = _find_xlsr_aasist_checkpoint_no_download()
+            if xlsr_input:
+                print(f"  OK   XLS-R base checkpoint: {xlsr_input}")
+            elif xlsr_any and not require_kaggle_xlsr:
+                print(f"  OK   XLS-R base checkpoint: {xlsr_any}")
+            else:
+                missing.append("XLS-R base checkpoint xlsr2_300m.pt for XLS-R+AASIST")
+            if ckpt:
+                print(f"  OK   XLS-R+AASIST checkpoint: {ckpt}")
+            else:
+                missing.append("XLS-R+AASIST checkpoint Best_LA_model_for_*.pth")
+        elif model_name == "XLS-R+Nes2Net":
+            ckpt = _find_nes2net_checkpoint_no_download()
+            if xlsr_input:
+                print(f"  OK   XLS-R base checkpoint: {xlsr_input}")
+            elif xlsr_any and not require_kaggle_xlsr:
+                print(f"  OK   XLS-R base checkpoint: {xlsr_any}")
+            else:
+                missing.append("XLS-R base checkpoint xlsr2_300m.pt for XLS-R+Nes2Net")
+            if ckpt:
+                print(f"  OK   XLS-R+Nes2Net checkpoint: {ckpt}")
+            else:
+                missing.append("XLS-R+Nes2Net checkpoint pretrained_nes2net.pth")
+        else:
+            print(f"  WARN {model_name}: no preflight rule")
+
+    if missing:
+        message = "\n".join(f"  - {item}" for item in sorted(set(missing)))
+        raise FileNotFoundError(
+            "Missing model inputs before evaluation:\n"
+            f"{message}\n"
+            "Attach the missing files as Kaggle input datasets before running this notebook. "
+            f"XLS-R 300M URL: {XLSR_300M_URL}"
+        )
 
 
 def load_lfcc_lcnn_model() -> nn.Module:
@@ -1126,7 +1324,7 @@ FORCE_EVAL = {
     "XLS-R+AASIST": False,
     "XLS-R+Nes2Net": False,
 }
-ENABLED_MODELS = ["AASIST", "AASIST-L", "AASIST3", "LFCC+LCNN", "XLS-R+AASIST", "XLS-R+Nes2Net"]
+ENABLED_MODELS = ["AASIST", "AASIST-L", "AASIST3", "LFCC+LCNN", "XLS-R+Nes2Net", "XLS-R+AASIST"]
 SMOKE_TEST_N = None
 PARTIAL_SAVE_EVERY = 5000
 NUM_WORKERS = 2
@@ -1219,7 +1417,7 @@ FORCE_EVAL = {
     "XLS-R+AASIST": False,
     "XLS-R+Nes2Net": False,
 }
-ENABLED_MODELS = ["AASIST", "LFCC+LCNN", "AASIST3", "AASIST-L", "XLS-R+AASIST", "XLS-R+Nes2Net"]
+ENABLED_MODELS = ["AASIST", "AASIST-L", "AASIST3", "LFCC+LCNN", "XLS-R+Nes2Net", "XLS-R+AASIST"]
 SMOKE_TEST_N = None
 PARTIAL_SAVE_EVERY = 10000
 NUM_WORKERS = 2
@@ -1330,7 +1528,7 @@ FORCE_EVAL = {
     "XLS-R+AASIST": False,
     "XLS-R+Nes2Net": False,
 }
-ENABLED_MODELS = ["AASIST", "AASIST-L", "AASIST3", "LFCC+LCNN", "XLS-R+AASIST", "XLS-R+Nes2Net"]
+ENABLED_MODELS = ["AASIST", "AASIST-L", "AASIST3", "LFCC+LCNN", "XLS-R+Nes2Net", "XLS-R+AASIST"]
 SMOKE_TEST_N = None
 PARTIAL_SAVE_EVERY = 5000
 NUM_WORKERS = 2
@@ -1472,7 +1670,7 @@ FORCE_EVAL = {
     "XLS-R+AASIST": False,
     "XLS-R+Nes2Net": False,
 }
-ENABLED_MODELS = ["AASIST", "LFCC+LCNN", "AASIST3", "AASIST-L", "XLS-R+AASIST", "XLS-R+Nes2Net"]
+ENABLED_MODELS = ["AASIST", "AASIST-L", "AASIST3", "LFCC+LCNN", "XLS-R+Nes2Net", "XLS-R+AASIST"]
 PARTIAL_SAVE_EVERY = 5000
 NUM_WORKERS = 2
 RUN_COMPOUND_SSL_MODELS = False
@@ -2200,6 +2398,8 @@ def evaluate_asv5_hf_webdataset_model(
 
 
 RUN_LOCAL_CODE = r'''
+preflight_check_model_inputs(ENABLED_MODELS, results=results, force_eval=FORCE_EVAL)
+
 run_eval_plan(
     enabled_models=ENABLED_MODELS,
     df=eval_df,
@@ -2221,6 +2421,8 @@ for name, result in results.items():
 
 
 RUN_ASV5_CODE = r'''
+preflight_check_model_inputs(ENABLED_MODELS, results=results, force_eval=FORCE_EVAL)
+
 if RESOLVED_ASV5_SOURCE == "local":
     run_eval_plan(
         enabled_models=ENABLED_MODELS,
@@ -2268,6 +2470,756 @@ save_results_pickle(results, OUTPUT_PKL)
 print("final summary")
 for name, result in results.items():
     print(f"{name:20s} EER={result['eer']:.4f}% N={len(result['scores']):,}")
+'''
+
+
+ERROR_ANALYSIS_SETUP_CODE = r'''
+import math
+import os
+import pickle
+import shutil
+import zipfile
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+from sklearn.metrics import roc_curve
+
+try:
+    import matplotlib.pyplot as plt
+except ImportError:
+    plt = None
+    print("matplotlib is not installed; PNG plots will be skipped")
+
+
+BASE_INPUTS = [
+    Path("/kaggle/input/datasets/minhbhm/sdd-survey"),
+    Path("/kaggle/input/sdd-survey"),
+    Path("results"),
+]
+OUTPUT_ROOT = Path("/kaggle/working/error_analysis") if Path("/kaggle/working").exists() else Path("notebook_exports/error_analysis")
+TOP_K_HARD_ERRORS = 25
+CREATE_ZIP = True
+RUN_SPECTROGRAMS = False
+RANDOM_SEED = 12345
+np.random.seed(RANDOM_SEED)
+DATASET_STATUS = {}
+
+
+DATASETS = {
+    "asvspoof19": {
+        "display": "ASVspoof 2019 LA",
+        "baseline": True,
+        "metadata_fields": ["attack", "speaker"],
+        "result_paths": [
+            Path("/kaggle/input/datasets/minhbhm/sdd-survey/asvspoof19/results.pkl"),
+            Path("/kaggle/input/sdd-survey/asvspoof19/results.pkl"),
+            Path("results/asvspoof19/results.pkl"),
+        ],
+        "metadata_paths": [
+            Path("/kaggle/input/datasets/minhbhm/sdd-survey/asvspoof19/ASVspoof2019.LA.cm.eval.trl.txt"),
+            Path("/kaggle/input/sdd-survey/asvspoof19/ASVspoof2019.LA.cm.eval.trl.txt"),
+            Path("/kaggle/input/datasets/awsaf49/asvpoof-2019-dataset/LA/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.eval.trl.txt"),
+            Path("/kaggle/input/datasets/awsaf49/asvpoof-2019-dataset/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.eval.trl.txt"),
+        ],
+    },
+    "asvspoof21": {
+        "display": "ASVspoof 2021 DF",
+        "metadata_fields": ["codec", "vocoder", "attack", "speaker"],
+        "result_paths": [
+            Path("/kaggle/input/datasets/minhbhm/sdd-survey/asvspoof21/results.pkl"),
+            Path("/kaggle/input/sdd-survey/asvspoof21/results.pkl"),
+            Path("results/asvspoof21/results.pkl"),
+        ],
+        "metadata_paths": [
+            Path("/kaggle/input/datasets/minhbhm/sdd-survey/asvspoof21/trial_metadata.txt"),
+            Path("/kaggle/input/sdd-survey/asvspoof21/trial_metadata.txt"),
+            Path("/kaggle/input/datasets/mohammedabdeldayem/avsspoof-2021/DF-keys-full/keys/DF/CM/trial_metadata.txt"),
+            Path("/kaggle/input/avsspoof-2021/DF-keys-full/keys/DF/CM/trial_metadata.txt"),
+        ],
+    },
+    "asvspoof5": {
+        "display": "ASVspoof 5 Track 1",
+        "metadata_fields": ["attack", "attack_tag", "codec", "condition", "speaker", "gender"],
+        "result_paths": [
+            Path("/kaggle/input/datasets/minhbhm/sdd-survey/asvspoof5/results.pkl"),
+            Path("/kaggle/input/sdd-survey/asvspoof5/results.pkl"),
+            Path("results/asvspoof5/results.pkl"),
+        ],
+        "metadata_paths": [
+            Path("/kaggle/input/datasets/minhbhm/sdd-survey/asvspoof5/ASVspoof5.eval.track_1.tsv"),
+            Path("/kaggle/input/sdd-survey/asvspoof5/ASVspoof5.eval.track_1.tsv"),
+            Path("/kaggle/input/datasets/minhbhm/sdd-survey/asvspoof5/ASVspoof5.dev.track_1.tsv"),
+            Path("/kaggle/input/sdd-survey/asvspoof5/ASVspoof5.dev.track_1.tsv"),
+        ],
+    },
+    "in_the_wild": {
+        "display": "In-the-Wild",
+        "metadata_fields": ["speaker", "duration_bucket"],
+        "result_paths": [
+            Path("/kaggle/input/datasets/minhbhm/sdd-survey/in_the_wild/results.pkl"),
+            Path("/kaggle/input/sdd-survey/in_the_wild/results.pkl"),
+            Path("results/in_the_wild/results.pkl"),
+        ],
+        "metadata_paths": [
+            Path("/kaggle/input/datasets/minhbhm/sdd-survey/in_the_wild/meta.csv"),
+            Path("/kaggle/input/sdd-survey/in_the_wild/meta.csv"),
+            Path("/kaggle/input/datasets/abdallamohamed312/in-the-wild-audio-deepfake/meta.csv"),
+            Path("/kaggle/input/in-the-wild-audio-deepfake/meta.csv"),
+        ],
+    },
+}
+
+OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
+print(f"output root: {OUTPUT_ROOT}")
+'''
+
+
+ERROR_ANALYSIS_HELPERS_CODE = r'''
+class NumpyCompatUnpickler(pickle.Unpickler):
+    def find_class(self, module, name):
+        if module.startswith("numpy._core"):
+            module = module.replace("numpy._core", "numpy.core", 1)
+        return super().find_class(module, name)
+
+
+def first_existing(paths):
+    for path in paths:
+        if Path(path).exists():
+            return Path(path)
+    return None
+
+
+def load_pickle_compat(path: Path):
+    with open(path, "rb") as handle:
+        return NumpyCompatUnpickler(handle).load()
+
+
+def compute_eer_threshold(scores, labels):
+    scores = np.asarray(scores, dtype=np.float64)
+    labels = np.asarray(labels, dtype=np.int64)
+    fpr, tpr, thresholds = roc_curve(labels, scores, pos_label=1)
+    fnr = 1.0 - tpr
+    idx = int(np.nanargmin(np.abs(fpr - fnr)))
+    threshold = float(thresholds[idx])
+    if not np.isfinite(threshold):
+        finite = thresholds[np.isfinite(thresholds)]
+        threshold = float(finite[0]) if len(finite) else 0.5
+    return float((fpr[idx] + fnr[idx]) * 50.0), threshold
+
+
+def compute_operating_metrics(scores, labels, threshold):
+    scores = np.asarray(scores, dtype=np.float64)
+    labels = np.asarray(labels, dtype=np.int64)
+    pred = (scores >= threshold).astype(np.int64)
+    spoof = labels == 0
+    bona = labels == 1
+    fp = int(np.sum((pred == 1) & spoof))
+    fn = int(np.sum((pred == 0) & bona))
+    tp = int(np.sum((pred == 1) & bona))
+    tn = int(np.sum((pred == 0) & spoof))
+    far = fp / max(1, int(np.sum(spoof)))
+    frr = fn / max(1, int(np.sum(bona)))
+    accuracy = (tp + tn) / max(1, len(labels))
+    return {
+        "threshold": float(threshold),
+        "far": float(far),
+        "frr": float(frr),
+        "fp": fp,
+        "fn": fn,
+        "tp": tp,
+        "tn": tn,
+        "accuracy": float(accuracy),
+        "n": int(len(labels)),
+    }
+
+
+def expected_calibration_error(scores, labels, n_bins=10):
+    scores = np.asarray(scores, dtype=np.float64)
+    labels = np.asarray(labels, dtype=np.float64)
+    bins = np.linspace(0.0, 1.0, n_bins + 1)
+    ece = 0.0
+    rows = []
+    for lo, hi in zip(bins[:-1], bins[1:]):
+        if hi == 1.0:
+            mask = (scores >= lo) & (scores <= hi)
+        else:
+            mask = (scores >= lo) & (scores < hi)
+        n = int(mask.sum())
+        if n == 0:
+            rows.append({"bin_left": lo, "bin_right": hi, "n": 0, "mean_score": np.nan, "frac_bonafide": np.nan})
+            continue
+        mean_score = float(scores[mask].mean())
+        frac_bona = float(labels[mask].mean())
+        ece += (n / len(scores)) * abs(mean_score - frac_bona)
+        rows.append({"bin_left": lo, "bin_right": hi, "n": n, "mean_score": mean_score, "frac_bonafide": frac_bona})
+    return float(ece), pd.DataFrame(rows)
+
+
+def labels_from_results(results):
+    for result in results.values():
+        if isinstance(result, dict) and "labels" in result:
+            return np.asarray(result["labels"], dtype=np.int64)
+    raise ValueError("No labels found in results.pkl")
+
+
+def model_names_from_results(results, n_expected):
+    names = []
+    for model, result in results.items():
+        if not isinstance(result, dict):
+            continue
+        if "scores" not in result or "labels" not in result:
+            continue
+        if len(result["scores"]) != n_expected or len(result["labels"]) != n_expected:
+            print(f"warning: skipping {model}; length mismatch")
+            continue
+        names.append(model)
+    return names
+
+
+def parse_asvspoof19_metadata(path: Path) -> pd.DataFrame:
+    rows = []
+    with open(path, "r", encoding="utf-8") as handle:
+        for line in handle:
+            parts = line.strip().split()
+            if len(parts) < 5:
+                continue
+            rows.append({
+                "speaker": parts[0],
+                "utt_id": parts[1],
+                "attack": "bonafide" if parts[3] == "-" else parts[3],
+                "metadata_label": 1 if parts[4] == "bonafide" else 0,
+            })
+    return pd.DataFrame(rows)
+
+
+def parse_asvspoof21_metadata(path: Path) -> pd.DataFrame:
+    rows = []
+    with open(path, "r", encoding="utf-8") as handle:
+        for line in handle:
+            parts = line.strip().split()
+            if len(parts) < 6:
+                continue
+            label_text = parts[5]
+            if label_text not in ("bonafide", "spoof"):
+                continue
+            rows.append({
+                "speaker": parts[0],
+                "utt_id": parts[1],
+                "codec": parts[2],
+                "source": parts[3] if len(parts) > 3 else "unknown",
+                "attack": parts[4] if len(parts) > 4 else "unknown",
+                "metadata_label": 1 if label_text == "bonafide" else 0,
+                "trim": parts[6] if len(parts) > 6 else "unknown",
+                "vocoder": parts[8] if len(parts) > 8 else "unknown",
+            })
+    return pd.DataFrame(rows)
+
+
+def parse_asvspoof5_metadata(path: Path) -> pd.DataFrame:
+    rows = []
+    with open(path, "r", encoding="utf-8") as handle:
+        for line in handle:
+            parts = line.strip().split()
+            if not parts or len(parts) < 5:
+                continue
+            if len(parts) >= 10:
+                speaker, utt_id, gender, codec, codec_q, codec_seed, attack_tag, attack_label, key, tmp = parts[:10]
+            else:
+                speaker, utt_id, gender, attack_label, key = parts[:5]
+                codec, codec_q, codec_seed, attack_tag, tmp = "-", "-", "-", "-", "-"
+            if key not in ("bonafide", "spoof"):
+                continue
+            attack = "bonafide" if attack_label == "bonafide" else attack_label
+            codec_norm = "nocodec" if codec == "-" else codec
+            rows.append({
+                "speaker": speaker,
+                "utt_id": utt_id,
+                "gender": gender,
+                "codec": codec_norm,
+                "codec_q": codec_q,
+                "codec_seed": codec_seed,
+                "attack_tag": "bonafide" if attack_tag == "-" else attack_tag,
+                "attack": attack,
+                "condition": "bonafide" if key == "bonafide" else ("adversarial" if "adv" in attack.lower() or "adversarial" in attack.lower() else "spoof"),
+                "metadata_label": 1 if key == "bonafide" else 0,
+            })
+    return pd.DataFrame(rows)
+
+
+def parse_in_the_wild_metadata(path: Path) -> pd.DataFrame:
+    raw = pd.read_csv(path)
+    lower = {str(c).lower(): c for c in raw.columns}
+    file_col = next((lower[k] for k in ("file", "filename", "path", "audio") if k in lower), raw.columns[0])
+    label_col = next((lower[k] for k in ("label", "class", "key") if k in lower), raw.columns[-1])
+    speaker_col = next((lower[k] for k in ("speaker", "person", "celebrity") if k in lower), None)
+    duration_col = next((lower[k] for k in ("duration", "dur", "length") if k in lower), None)
+
+    rows = []
+    for _, row in raw.iterrows():
+        label_text = str(row[label_col]).strip().lower()
+        is_bonafide = label_text in ("bona-fide", "bonafide", "bona_fide", "real", "genuine", "1")
+        item = {
+            "utt_id": Path(str(row[file_col])).stem,
+            "speaker": str(row[speaker_col]) if speaker_col else "unknown",
+            "metadata_label": 1 if is_bonafide else 0,
+            "label_text": label_text,
+        }
+        if duration_col is not None:
+            item["duration"] = pd.to_numeric(row[duration_col], errors="coerce")
+        rows.append(item)
+    df = pd.DataFrame(rows)
+    if "duration" in df.columns:
+        df["duration_bucket"] = pd.cut(
+            df["duration"],
+            bins=[-np.inf, 2, 5, 10, 20, np.inf],
+            labels=["<=2s", "2-5s", "5-10s", "10-20s", ">20s"],
+        ).astype(str)
+    return df
+
+
+METADATA_PARSERS = {
+    "asvspoof19": parse_asvspoof19_metadata,
+    "asvspoof21": parse_asvspoof21_metadata,
+    "asvspoof5": parse_asvspoof5_metadata,
+    "in_the_wild": parse_in_the_wild_metadata,
+}
+
+
+def align_metadata(meta_df, labels):
+    labels = np.asarray(labels, dtype=np.int64)
+    if meta_df is None or meta_df.empty:
+        return None, "metadata missing"
+    if len(meta_df) == len(labels):
+        aligned = meta_df.reset_index(drop=True).copy()
+    elif len(meta_df) > len(labels):
+        candidate = meta_df.iloc[:len(labels)].reset_index(drop=True).copy()
+        if "metadata_label" in candidate and np.array_equal(candidate["metadata_label"].to_numpy(dtype=np.int64), labels):
+            aligned = candidate
+        else:
+            return None, f"metadata length {len(meta_df):,} does not align with result length {len(labels):,}"
+    else:
+        return None, f"metadata length {len(meta_df):,} is shorter than result length {len(labels):,}"
+
+    if "metadata_label" in aligned:
+        mismatch = int(np.sum(aligned["metadata_label"].to_numpy(dtype=np.int64) != labels))
+        if mismatch:
+            return None, f"metadata label mismatch in {mismatch:,}/{len(labels):,} rows"
+    return aligned.drop(columns=["metadata_label"], errors="ignore"), "metadata aligned"
+
+
+def build_dataset_frame(dataset_key, results, config):
+    labels = labels_from_results(results)
+    n = len(labels)
+    df = pd.DataFrame({"row_id": np.arange(n), "utt_id": [f"{dataset_key}_{i:07d}" for i in range(n)], "label": labels})
+    meta_path = first_existing(config.get("metadata_paths", []))
+    metadata_status = "metadata path not found"
+    if meta_path is not None:
+        try:
+            meta_df = METADATA_PARSERS[dataset_key](meta_path)
+            aligned, metadata_status = align_metadata(meta_df, labels)
+            if aligned is not None:
+                base_cols = [c for c in aligned.columns if c != "label"]
+                df = pd.concat([df.drop(columns=["utt_id"]), aligned[base_cols].reset_index(drop=True)], axis=1)
+                if "utt_id" not in df.columns:
+                    df["utt_id"] = [f"{dataset_key}_{i:07d}" for i in range(n)]
+        except Exception as exc:
+            metadata_status = f"metadata parse failed: {exc}"
+
+    models = model_names_from_results(results, n)
+    for model in models:
+        scores = np.asarray(results[model]["scores"], dtype=np.float64)
+        eer, threshold = compute_eer_threshold(scores, labels)
+        df[f"{model}_score"] = scores
+        df[f"{model}_pred"] = (scores >= threshold).astype(np.int64)
+        df[f"{model}_correct"] = df[f"{model}_pred"].to_numpy(dtype=np.int64) == labels
+    return df, models, metadata_status, meta_path
+'''
+
+
+ERROR_ANALYSIS_RUN_CODE = r'''
+def metrics_for_dataset(df, models):
+    labels = df["label"].to_numpy(dtype=np.int64)
+    metrics = {}
+    rows = []
+    for model in models:
+        scores = df[f"{model}_score"].to_numpy(dtype=np.float64)
+        eer, threshold = compute_eer_threshold(scores, labels)
+        item = compute_operating_metrics(scores, labels, threshold)
+        ece, _ = expected_calibration_error(scores, labels)
+        item["eer"] = float(eer)
+        item["ece"] = float(ece)
+        metrics[model] = item
+        rows.append({"model": model, **item})
+    return metrics, pd.DataFrame(rows)
+
+
+def grouped_eer_for_dataset(df, models, fields, metrics):
+    grouped = {}
+    for field in fields:
+        if field not in df.columns:
+            continue
+        rows = []
+        for group_value, group_df in df.groupby(field, dropna=False):
+            labels = group_df["label"].to_numpy(dtype=np.int64)
+            if len(np.unique(labels)) < 2:
+                continue
+            for model in models:
+                scores = group_df[f"{model}_score"].to_numpy(dtype=np.float64)
+                eer, _ = compute_eer_threshold(scores, labels)
+                threshold = metrics[model]["threshold"]
+                op = compute_operating_metrics(scores, labels, threshold)
+                rows.append({
+                    "field": field,
+                    "group": str(group_value),
+                    "model": model,
+                    "n": int(len(group_df)),
+                    "n_bonafide": int(np.sum(labels == 1)),
+                    "n_spoof": int(np.sum(labels == 0)),
+                    "eer": float(eer),
+                    "far": op["far"],
+                    "frr": op["frr"],
+                    "fp": op["fp"],
+                    "fn": op["fn"],
+                })
+        if rows:
+            grouped[field] = pd.DataFrame(rows).sort_values(["eer", "n"], ascending=[False, False]).reset_index(drop=True)
+    return grouped
+
+
+def score_correlation_for_dataset(df, models):
+    score_cols = [f"{model}_score" for model in models]
+    corr = df[score_cols].corr(method="spearman")
+    corr.index = models
+    corr.columns = models
+    return corr
+
+
+def failure_overlap_for_dataset(df, models):
+    rows = []
+    error_sets = {
+        model: set(df.index[~df[f"{model}_correct"].astype(bool)].tolist())
+        for model in models
+    }
+    for left in models:
+        row = {"model": left}
+        for right in models:
+            union = error_sets[left] | error_sets[right]
+            inter = error_sets[left] & error_sets[right]
+            row[right] = float(len(inter) / len(union)) if union else 0.0
+        rows.append(row)
+    return pd.DataFrame(rows).set_index("model")
+
+
+def hard_errors_for_dataset(df, models, metrics, top_k=25):
+    hard = {}
+    csv_rows = []
+    error_count = np.zeros(len(df), dtype=np.int64)
+    for model in models:
+        pred = df[f"{model}_pred"].to_numpy(dtype=np.int64)
+        labels = df["label"].to_numpy(dtype=np.int64)
+        scores = df[f"{model}_score"].to_numpy(dtype=np.float64)
+        error_count += (pred != labels).astype(np.int64)
+
+        fp = df[(labels == 0) & (pred == 1)].copy()
+        fn = df[(labels == 1) & (pred == 0)].copy()
+        fp = fp.assign(error_type="false_positive", model=model, confidence=fp[f"{model}_score"])
+        fn = fn.assign(error_type="false_negative", model=model, confidence=1.0 - fn[f"{model}_score"])
+        fp = fp.sort_values([f"{model}_score", "utt_id"], ascending=[False, True]).head(top_k)
+        fn = fn.sort_values([f"{model}_score", "utt_id"], ascending=[True, True]).head(top_k)
+
+        cols = ["utt_id", "label"]
+        metadata_cols = [c for c in ("speaker", "attack", "attack_tag", "codec", "vocoder", "condition", "duration", "duration_bucket") if c in df.columns]
+        export_cols = cols + metadata_cols + [f"{model}_score", "error_type", "confidence"]
+        top_fp = fp[export_cols].to_dict("records") if not fp.empty else []
+        top_fn = fn[export_cols].to_dict("records") if not fn.empty else []
+        hard[model] = {"top_fp": top_fp, "top_fn": top_fn}
+        csv_rows.extend(top_fp)
+        csv_rows.extend(top_fn)
+
+    universal_df = df.copy()
+    universal_df["failed_model_count"] = error_count
+    universal_df = universal_df[universal_df["failed_model_count"] >= max(2, min(len(models), math.ceil(len(models) * 0.75)))]
+    universal_df = universal_df.sort_values(["failed_model_count", "utt_id"], ascending=[False, True]).head(top_k)
+    hard["_universal"] = universal_df[["utt_id", "label", "failed_model_count"]].to_dict("records")
+    for row in hard["_universal"]:
+        row["model"] = "_universal"
+        row["error_type"] = "shared_error"
+        csv_rows.append(row)
+    return hard, pd.DataFrame(csv_rows)
+
+
+def plot_score_distributions(df, models, out_dir):
+    if plt is None:
+        return
+    out_dir.mkdir(parents=True, exist_ok=True)
+    if not models:
+        return
+    ncols = 2
+    nrows = math.ceil(len(models) / ncols)
+    fig, axes = plt.subplots(nrows, ncols, figsize=(12, 3.2 * nrows), squeeze=False)
+    labels = df["label"].to_numpy(dtype=np.int64)
+    for ax, model in zip(axes.ravel(), models):
+        scores = df[f"{model}_score"].to_numpy(dtype=np.float64)
+        ax.hist(scores[labels == 0], bins=60, alpha=0.55, density=True, label="spoof", color="#d95f02")
+        ax.hist(scores[labels == 1], bins=60, alpha=0.55, density=True, label="bonafide", color="#1b9e77")
+        ax.set_title(model)
+        ax.set_xlabel("bonafide score")
+        ax.set_ylabel("density")
+        ax.legend()
+    for ax in axes.ravel()[len(models):]:
+        ax.axis("off")
+    fig.tight_layout()
+    fig.savefig(out_dir / "score_distributions.png", dpi=160)
+    plt.close(fig)
+
+
+def plot_reliability(df, models, out_dir):
+    if plt is None:
+        return
+    out_dir.mkdir(parents=True, exist_ok=True)
+    if not models:
+        return
+    fig, ax = plt.subplots(figsize=(6, 5))
+    labels = df["label"].to_numpy(dtype=np.int64)
+    for model in models:
+        _, rel = expected_calibration_error(df[f"{model}_score"].to_numpy(dtype=np.float64), labels)
+        valid = rel[rel["n"] > 0]
+        ax.plot(valid["mean_score"], valid["frac_bonafide"], marker="o", linewidth=1.5, label=model)
+    ax.plot([0, 1], [0, 1], linestyle="--", color="black", linewidth=1)
+    ax.set_xlabel("mean predicted bonafide score")
+    ax.set_ylabel("empirical bonafide fraction")
+    ax.set_title("Reliability diagram")
+    ax.legend(fontsize=8)
+    fig.tight_layout()
+    fig.savefig(out_dir / "reliability.png", dpi=160)
+    plt.close(fig)
+
+
+def plot_grouped_eer(grouped, out_dir):
+    if plt is None:
+        return
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for field, table in grouped.items():
+        top_groups = table.groupby("group")["eer"].max().sort_values(ascending=False).head(20).index.tolist()
+        plot_df = table[table["group"].isin(top_groups)].copy()
+        if plot_df.empty:
+            continue
+        pivot = plot_df.pivot_table(index="group", columns="model", values="eer", aggfunc="mean")
+        ax = pivot.plot(kind="bar", figsize=(max(10, 0.55 * len(pivot)), 5))
+        ax.set_ylabel("EER (%)")
+        ax.set_title(f"EER by {field}")
+        ax.legend(fontsize=8)
+        fig = ax.get_figure()
+        fig.tight_layout()
+        fig.savefig(out_dir / f"grouped_eer_{field}.png", dpi=160)
+        plt.close(fig)
+
+
+def plot_correlation(corr, out_dir):
+    if plt is None:
+        return
+    out_dir.mkdir(parents=True, exist_ok=True)
+    fig, ax = plt.subplots(figsize=(7, 6))
+    im = ax.imshow(corr.to_numpy(dtype=float), vmin=-1, vmax=1, cmap="coolwarm")
+    ax.set_xticks(range(len(corr.columns)), corr.columns, rotation=45, ha="right")
+    ax.set_yticks(range(len(corr.index)), corr.index)
+    for i in range(len(corr.index)):
+        for j in range(len(corr.columns)):
+            ax.text(j, i, f"{corr.iloc[i, j]:.2f}", ha="center", va="center", fontsize=8)
+    ax.set_title("Spearman score correlation")
+    fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+    fig.tight_layout()
+    fig.savefig(out_dir / "score_correlation.png", dpi=160)
+    plt.close(fig)
+
+
+def export_dataset_artifacts(dataset_key, analysis, models, hard_errors_table):
+    out_dir = OUTPUT_ROOT / dataset_key
+    plots_dir = out_dir / "plots"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    plots_dir.mkdir(parents=True, exist_ok=True)
+
+    with open(out_dir / "error_analysis.pkl", "wb") as handle:
+        pickle.dump(analysis, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    pd.DataFrame.from_dict(analysis["metrics"], orient="index").rename_axis("model").reset_index().to_csv(out_dir / "metrics.csv", index=False)
+    analysis["score_correlation"].to_csv(out_dir / "score_correlation.csv")
+    analysis["failure_overlap"].to_csv(out_dir / "failure_overlap.csv")
+    if hard_errors_table is not None and not hard_errors_table.empty:
+        hard_errors_table.to_csv(out_dir / "hard_errors.csv", index=False)
+    for field, table in analysis["grouped_eer"].items():
+        table.to_csv(out_dir / f"grouped_eer_{field}.csv", index=False)
+
+    plot_score_distributions(analysis["df"], models, plots_dir)
+    plot_reliability(analysis["df"], models, plots_dir)
+    plot_grouped_eer(analysis["grouped_eer"], plots_dir)
+    plot_correlation(analysis["score_correlation"], plots_dir)
+    print(f"exported {dataset_key}: {out_dir}")
+
+
+def analyze_dataset(dataset_key, config):
+    result_path = first_existing(config["result_paths"])
+    if result_path is None:
+        print(f"{dataset_key}: results.pkl not found; skipping")
+        DATASET_STATUS[dataset_key] = {"status": "skipped; results.pkl not found"}
+        return None
+    print(f"\n## {config['display']}")
+    print(f"loading results: {result_path}")
+    results = load_pickle_compat(result_path)
+    df, models, metadata_status, meta_path = build_dataset_frame(dataset_key, results, config)
+    print(f"models: {models}")
+    print(f"metadata: {metadata_status}; path={meta_path}")
+    DATASET_STATUS[dataset_key] = {
+        "status": metadata_status,
+        "result_path": str(result_path),
+        "metadata_path": str(meta_path) if meta_path is not None else None,
+        "n_rows": int(len(df)),
+        "n_models": int(len(models)),
+    }
+    metrics, metrics_df = metrics_for_dataset(df, models)
+    grouped = grouped_eer_for_dataset(df, models, config.get("metadata_fields", []), metrics)
+    corr = score_correlation_for_dataset(df, models)
+    overlap = failure_overlap_for_dataset(df, models)
+    hard, hard_table = hard_errors_for_dataset(df, models, metrics, TOP_K_HARD_ERRORS)
+
+    analysis = {
+        "dataset": dataset_key,
+        "df": df,
+        "metrics": metrics,
+        "grouped_eer": grouped,
+        "score_correlation": corr,
+        "failure_overlap": overlap,
+        "hard_errors": hard,
+    }
+    export_dataset_artifacts(dataset_key, analysis, models, hard_table)
+    display(metrics_df.sort_values("eer"))
+    return analysis
+
+
+ANALYSES = {}
+for dataset_key, config in DATASETS.items():
+    ANALYSES[dataset_key] = analyze_dataset(dataset_key, config)
+'''
+
+
+ERROR_ANALYSIS_SYNTHESIS_CODE = r'''
+def build_synthesis(analyses):
+    rows = []
+    for dataset_key, analysis in analyses.items():
+        if analysis is None:
+            continue
+        for model, item in analysis["metrics"].items():
+            rows.append({
+                "dataset": dataset_key,
+                "display": DATASETS[dataset_key]["display"],
+                "model": model,
+                "eer": item["eer"],
+                "threshold": item["threshold"],
+                "far": item["far"],
+                "frr": item["frr"],
+                "accuracy": item["accuracy"],
+                "ece": item["ece"],
+                "n": item["n"],
+            })
+    metrics_all = pd.DataFrame(rows)
+    if metrics_all.empty:
+        return metrics_all, pd.DataFrame(), []
+
+    eer_table = metrics_all.pivot_table(index="model", columns="dataset", values="eer", aggfunc="first")
+    if "asvspoof19" in eer_table.columns:
+        gap = eer_table.subtract(eer_table["asvspoof19"], axis=0)
+    else:
+        gap = pd.DataFrame(index=eer_table.index)
+    robustness = pd.DataFrame({
+        "mean_eer": eer_table.mean(axis=1),
+        "std_eer": eer_table.std(axis=1),
+        "datasets_evaluated": eer_table.notna().sum(axis=1),
+    }).sort_values(["mean_eer", "std_eer"])
+
+    out_dir = OUTPUT_ROOT / "synthesis"
+    plots_dir = out_dir / "plots"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    plots_dir.mkdir(parents=True, exist_ok=True)
+    metrics_all.to_csv(out_dir / "all_metrics.csv", index=False)
+    eer_table.to_csv(out_dir / "eer_table.csv")
+    gap.to_csv(out_dir / "generalization_gap.csv")
+    robustness.to_csv(out_dir / "robustness_summary.csv")
+
+    if plt is not None:
+        ax = eer_table.plot(kind="bar", figsize=(11, 5))
+        ax.set_ylabel("EER (%)")
+        ax.set_title("EER across datasets")
+        ax.legend(title="dataset", fontsize=8)
+        fig = ax.get_figure()
+        fig.tight_layout()
+        fig.savefig(plots_dir / "eer_table.png", dpi=160)
+        plt.close(fig)
+
+    def table_to_markdown(table):
+        try:
+            return table.to_markdown()
+        except Exception:
+            return "```\n" + table.to_string() + "\n```"
+
+    report_lines = [
+        "# Error Analysis Report",
+        "",
+        "This report is generated from the current `results.pkl` files and available protocol metadata.",
+        "Labels use `1=bonafide`, `0=spoof`; model scores are bonafide probabilities.",
+        "",
+        "t-DCF is not reported because this repository currently stores CM scores only, not ASV-side scores.",
+        "To add t-DCF later, attach the official ASVspoof ASV scores and use the challenge evaluation script.",
+        "",
+        "## Dataset Status",
+        "",
+    ]
+    for dataset_key, analysis in analyses.items():
+        if analysis is None:
+            report_lines.append(f"- `{dataset_key}`: skipped; results.pkl not found")
+            continue
+        status = DATASET_STATUS.get(dataset_key, {})
+        report_lines.append(
+            f"- `{dataset_key}`: {status.get('n_rows', len(analysis['df'])):,} rows, "
+            f"{status.get('n_models', len(analysis['metrics']))} models, {status.get('status', 'metadata status unknown')}"
+        )
+
+    report_lines.extend(["", "## EER Summary", "", table_to_markdown(eer_table.round(4)), ""])
+    report_lines.extend(["## Generalization Gap vs ASVspoof 2019", "", table_to_markdown(gap.round(4)), ""])
+    report_lines.extend(["## Robustness Summary", "", table_to_markdown(robustness.round(4)), ""])
+    report_lines.extend(["## Notes", "", "- Add human interpretation here after reviewing grouped errors and hard examples.", ""])
+    (OUTPUT_ROOT / "report.md").write_text("\n".join(report_lines), encoding="utf-8")
+    print(f"wrote synthesis: {out_dir}")
+    return eer_table, gap, report_lines
+
+
+EER_TABLE, GENERALIZATION_GAP, REPORT_LINES = build_synthesis(ANALYSES)
+display(EER_TABLE)
+display(GENERALIZATION_GAP)
+'''
+
+
+ERROR_ANALYSIS_ZIP_CODE = r'''
+if CREATE_ZIP:
+    zip_path = OUTPUT_ROOT.parent / "error_analysis_artifacts.zip"
+    if zip_path.exists():
+        zip_path.unlink()
+    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for path in OUTPUT_ROOT.rglob("*"):
+            if path.is_file():
+                zf.write(path, path.relative_to(OUTPUT_ROOT.parent))
+    print(f"created {zip_path}")
+else:
+    print("CREATE_ZIP=False; skipping zip export")
+'''
+
+
+ERROR_ANALYSIS_SPECTROGRAM_CODE = r'''
+# Optional qualitative cell. It is intentionally off by default because audio datasets are large.
+# Set RUN_SPECTROGRAMS=True and attach the relevant audio dataset before extending this cell.
+if RUN_SPECTROGRAMS:
+    print("Spectrogram export is not wired by default. Use hard_errors.csv utt_ids to locate audio and inspect selected cases.")
+else:
+    print("RUN_SPECTROGRAMS=False; skipping optional spectrogram export")
 '''
 
 
@@ -2320,9 +3272,26 @@ def build_asv5() -> list[dict]:
     ]
 
 
+def build_error_analysis() -> list[dict]:
+    return [
+        md("""# Error Analysis\n\nThis notebook performs CPU-only error analysis from saved `results.pkl` files and lightweight protocol metadata. It is intentionally separate from the evaluation notebooks so it can be rerun quickly after new model results are added."""),
+        md("""## Output contract\n\nArtifacts are written under `/kaggle/working/error_analysis/` on Kaggle, or `notebook_exports/error_analysis/` locally. Each dataset exports `error_analysis.pkl`, CSV tables, plots, and the final cell optionally creates `error_analysis_artifacts.zip` for upload back into the `sdd-survey` Kaggle dataset."""),
+        code(ERROR_ANALYSIS_SETUP_CODE),
+        code(ERROR_ANALYSIS_HELPERS_CODE),
+        md("""## Run per-dataset analysis\n\nThe loop below analyzes every dataset with an available `results.pkl`. Missing models are skipped automatically. Metadata-dependent breakdowns are generated only when the protocol file aligns with the score arrays."""),
+        code(ERROR_ANALYSIS_RUN_CODE),
+        md("""## Cross-dataset synthesis\n\nThis cell writes cross-dataset EER tables, generalization gaps against ASVspoof 2019 when available, robustness summaries, and a deterministic `report.md`."""),
+        code(ERROR_ANALYSIS_SYNTHESIS_CODE),
+        md("""## Optional spectrogram scaffold\n\nSpectrograms require the large audio datasets, so they are disabled by default. Use `hard_errors.csv` to select utterances before enabling this section."""),
+        code(ERROR_ANALYSIS_SPECTROGRAM_CODE),
+        md("""## Optional zip export\n\nThe zip step is last so partial dataset artifacts remain available even if compression fails."""),
+        code(ERROR_ANALYSIS_ZIP_CODE),
+    ]
+
+
 SUMMARY_MD = """# Evaluation Notebooks Summary
 
-This folder contains four standalone Kaggle notebooks for dataset-level evaluation.
+This folder contains four standalone Kaggle notebooks for dataset-level evaluation plus one CPU-only error-analysis notebook.
 
 ## Shared result format
 
@@ -2392,6 +3361,12 @@ Expected Kaggle input paths:
 
 The locator searches for `meta.csv` (columns `file`, `speaker`, `label`) and a flat audio directory. `label='bona-fide'` maps to 1, anything else to 0.
 
+## Error Analysis
+
+Notebook: `error_analysis.ipynb`
+
+This notebook consumes saved `results.pkl` files and lightweight protocol metadata only. It writes deterministic artifacts under `/kaggle/working/error_analysis/`, including per-dataset `error_analysis.pkl`, metrics CSVs, grouped EER CSVs, score-distribution plots, failure-overlap tables, hard-error tables, a cross-dataset synthesis folder, and `error_analysis_artifacts.zip` for upload back to the `sdd-survey` Kaggle dataset.
+
 ## Model score convention
 
 AASIST, AASIST-L, AASIST3, XLS-R+AASIST, XLS-R+Nes2Net all produce two-class logits ordered as `[spoof, bonafide]` in these notebooks. The saved score is therefore:
@@ -2437,11 +3412,11 @@ In-the-Wild itself was already on `todo.md` as a generalization probe but had no
 ### Code changes in `scripts/create_eval_notebooks.py`
 
 - `MODEL_CODE`:
-  - Added `install_pkg`, `ensure_ssl_aasist_repo`, `ensure_nes2net_repo`, `find_or_download_xlsr_300m`, `_link_xlsr_into`, `find_xlsr_aasist_checkpoint`, `find_xlsr_nes2net_checkpoint`, `_strip_state_prefix`, `_reset_module_namespace`, `load_xlsr_aasist_model`, `load_xlsr_nes2net_model`, `predict_ssl_pair_batch`.
+  - Added `ensure_ssl_aasist_repo`, `ensure_nes2net_repo`, `ensure_fairseq_source`, `find_or_download_xlsr_300m`, `_link_xlsr_into`, `find_xlsr_aasist_checkpoint`, `find_xlsr_nes2net_checkpoint`, `_strip_state_prefix`, `_reset_module_namespace`, `load_xlsr_aasist_model`, `load_xlsr_nes2net_model`, `predict_ssl_pair_batch`.
   - Registered `XLS-R+AASIST` and `XLS-R+Nes2Net` in `MODEL_REGISTRY` (both with `WaveformDataset`, batch size 8).
   - Added `COMPOUND_GROUPS` declaring `[XLS-R+AASIST, XLS-R+Nes2Net]` as a shared-loader group.
-  - Added safety checks: repository-pinned fairseq is preferred over PyPI fairseq; SSL checkpoints must load with no missing/unexpected keys; generic module namespaces are reset before switching between cloned repos.
-  - Nes2Net args follow the repo defaults used by the training command: `n_output_logits=2`, `dilation=2`, `pool_func='mean'`, `SE_ratio=1`, `Nes_ratio=[8, 8]`.
+  - Added safety checks: fairseq is installed from the pinned XLS-R-compatible source snapshot instead of PyPI; SSL checkpoints must load with no missing/unexpected keys; generic module namespaces are reset before switching between cloned repos.
+  - Nes2Net args follow the repo CLI defaults: `n_output_logits=2`, `dilation=2`, `pool_func='mean'`, `SE_ratio=[1]`, `Nes_ratio=[8, 8]`.
   - `predict_ssl_pair_batch` now expects a single `[batch, 2]` logits tensor and raises immediately on any unexpected output shape.
 
 - `EVAL_LOCAL_CODE`:
@@ -2459,8 +3434,9 @@ In-the-Wild itself was already on `todo.md` as a generalization probe but had no
 The first implementation was intentionally reviewed before running full experiments. The following issues were fixed:
 
 - Partial checkpoint loading for SSL models was removed. Missing or unexpected checkpoint keys now raise an error, because partial loads can silently produce invalid EER values.
-- The fairseq dependency now prefers each repo's pinned `fairseq-*` folder. PyPI fairseq is only a fallback. Kaggle's current pip rejects old `omegaconf` metadata, so the installer downgrades to `pip<24.1` and uses pip's legacy resolver for the pinned fairseq editable install.
-- The pinned fairseq source directory is also inserted into `sys.path`, and the notebook verifies `import fairseq` immediately after install. This handles Kaggle sessions where editable install succeeds but the current kernel does not refresh module resolution.
+- The fairseq dependency now uses each repo's pinned `fairseq-*` folder when present; otherwise it clones `pytorch/fairseq` at commit `a54021305d6b3c4c5959ac9395135f63202db8f1` into `/kaggle/working`. PyPI fairseq is intentionally avoided because Kaggle's current pip rejects old `omegaconf` metadata and the released wheel can drift from the XLS-R checkpoint code.
+- The fairseq bootstrap downgrades to `pip<24.1`, installs Python-3.12-compatible runtime/build dependencies, and imports fairseq directly from the patched source tree on `sys.path`. It intentionally avoids editable fairseq builds, because the old fairseq packaging path is brittle on Kaggle's Python 3.12 runtime.
+- The pinned fairseq source directory is inserted into `sys.path`, and the notebook verifies `import fairseq` immediately after dependency setup. This keeps the active kernel pointed at the patched source tree.
 - Old fairseq dataclass config defaults are patched automatically for Python 3.12 by rewriting mutable defaults like `common: CommonConfig = CommonConfig()` to `field(default_factory=CommonConfig)`.
 - Hydra 1.0.x is installed as a fairseq dependency and has the same Python 3.12 dataclass issue. The notebook patches `hydra/conf/__init__.py` before importing fairseq, then clears `fairseq`, `hydra`, and `omegaconf` from `sys.modules` for a clean import.
 - Because fairseq's old `hydra_init()` reads dataclass `.default`, it also needs a small patch after converting fields to `default_factory`; the notebook now instantiates `field_info.default_factory()` before registering configs with Hydra.
@@ -2472,8 +3448,8 @@ The first implementation was intentionally reviewed before running full experime
 ### Required Kaggle input paths for the SSL models
 
 - `/kaggle/input/datasets/minhbhm/sdd-survey/checkpoints/xlsr_aasist/Best_LA_model_for_DF.pth` — TakHemlata pretrained anti-spoofing weights (Google Drive link in their README).
-- `/kaggle/input/datasets/minhbhm/sdd-survey/checkpoints/wav2vec2_nes2net/<file>.pth` — Liu-Tianchi pretrained averaged checkpoint, e.g. `wav2vec2_Nes2Net_X_e100_bz12_lr2.5e_07_algo4_seed12345_avg_ckpt_ep59_61_69.pth`.
-- `xlsr2_300m.pt` is auto-downloaded from `https://dl.fbaipublicfiles.com/fairseq/wav2vec/xlsr2_300m.pt` if not pre-staged. `fairseq` is `pip install`-ed at runtime.
+- `/kaggle/input/datasets/minhbhm/sdd-survey/checkpoints/wav2vec2_nes2net/<file>.pth` — Liu-Tianchi pretrained averaged checkpoint, e.g. `wav2vec2_Nes2Net_X_e100_bz12_lr2.5e_07_algo4_seed12345_avg_ckpt_ep59_61_69.pth`. If it is not attached as a Kaggle dataset, the notebook tries to download Google Drive id `1JFGv_2TONMnTLGbiOIuHFfMvuo4SIIpg` to `/kaggle/working/wav2vec2_nes2net/pretrained_nes2net.pth`.
+- `/kaggle/input/datasets/minhbhm/sdd-survey/checkpoints/xlsr/xlsr2_300m.pt` — XLS-R 300M base SSL checkpoint. The notebooks now preflight this Kaggle input before running SSL models, so attach it as a dataset instead of relying on runtime download. Direct URL: `https://dl.fbaipublicfiles.com/fairseq/wav2vec/xlsr2_300m.pt`.
 
 ### References used for dataset structure
 
@@ -2492,6 +3468,7 @@ def main() -> None:
     write_notebook(NOTEBOOK_DIR / "eval_asvspoof_2021.ipynb", build_asv2021())
     write_notebook(NOTEBOOK_DIR / "eval_asvspoof_5.ipynb", build_asv5())
     write_notebook(NOTEBOOK_DIR / "eval_in_the_wild.ipynb", build_in_the_wild())
+    write_notebook(NOTEBOOK_DIR / "error_analysis.ipynb", build_error_analysis())
     (NOTEBOOK_DIR / "evaluation_notebooks_summary.md").write_text(SUMMARY_MD, encoding="utf-8")
     print("evaluation notebooks written")
 

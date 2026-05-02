@@ -1,6 +1,6 @@
 # Evaluation Notebooks Summary
 
-This folder contains four standalone Kaggle notebooks for dataset-level evaluation.
+This folder contains four standalone Kaggle notebooks for dataset-level evaluation plus one CPU-only error-analysis notebook.
 
 ## Shared result format
 
@@ -70,6 +70,12 @@ Expected Kaggle input paths:
 
 The locator searches for `meta.csv` (columns `file`, `speaker`, `label`) and a flat audio directory. `label='bona-fide'` maps to 1, anything else to 0.
 
+## Error Analysis
+
+Notebook: `error_analysis.ipynb`
+
+This notebook consumes saved `results.pkl` files and lightweight protocol metadata only. It writes deterministic artifacts under `/kaggle/working/error_analysis/`, including per-dataset `error_analysis.pkl`, metrics CSVs, grouped EER CSVs, score-distribution plots, failure-overlap tables, hard-error tables, a cross-dataset synthesis folder, and `error_analysis_artifacts.zip` for upload back to the `sdd-survey` Kaggle dataset.
+
 ## Model score convention
 
 AASIST, AASIST-L, AASIST3, XLS-R+AASIST, XLS-R+Nes2Net all produce two-class logits ordered as `[spoof, bonafide]` in these notebooks. The saved score is therefore:
@@ -115,11 +121,11 @@ In-the-Wild itself was already on `todo.md` as a generalization probe but had no
 ### Code changes in `scripts/create_eval_notebooks.py`
 
 - `MODEL_CODE`:
-  - Added `install_pkg`, `ensure_ssl_aasist_repo`, `ensure_nes2net_repo`, `find_or_download_xlsr_300m`, `_link_xlsr_into`, `find_xlsr_aasist_checkpoint`, `find_xlsr_nes2net_checkpoint`, `_strip_state_prefix`, `_reset_module_namespace`, `load_xlsr_aasist_model`, `load_xlsr_nes2net_model`, `predict_ssl_pair_batch`.
+  - Added `ensure_ssl_aasist_repo`, `ensure_nes2net_repo`, `ensure_fairseq_source`, `find_or_download_xlsr_300m`, `_link_xlsr_into`, `find_xlsr_aasist_checkpoint`, `find_xlsr_nes2net_checkpoint`, `_strip_state_prefix`, `_reset_module_namespace`, `load_xlsr_aasist_model`, `load_xlsr_nes2net_model`, `predict_ssl_pair_batch`.
   - Registered `XLS-R+AASIST` and `XLS-R+Nes2Net` in `MODEL_REGISTRY` (both with `WaveformDataset`, batch size 8).
   - Added `COMPOUND_GROUPS` declaring `[XLS-R+AASIST, XLS-R+Nes2Net]` as a shared-loader group.
-  - Added safety checks: repository-pinned fairseq is preferred over PyPI fairseq; SSL checkpoints must load with no missing/unexpected keys; generic module namespaces are reset before switching between cloned repos.
-  - Nes2Net args follow the repo defaults used by the training command: `n_output_logits=2`, `dilation=2`, `pool_func='mean'`, `SE_ratio=1`, `Nes_ratio=[8, 8]`.
+  - Added safety checks: fairseq is installed from the pinned XLS-R-compatible source snapshot instead of PyPI; SSL checkpoints must load with no missing/unexpected keys; generic module namespaces are reset before switching between cloned repos.
+  - Nes2Net args follow the repo CLI defaults: `n_output_logits=2`, `dilation=2`, `pool_func='mean'`, `SE_ratio=[1]`, `Nes_ratio=[8, 8]`.
   - `predict_ssl_pair_batch` now expects a single `[batch, 2]` logits tensor and raises immediately on any unexpected output shape.
 
 - `EVAL_LOCAL_CODE`:
@@ -137,8 +143,9 @@ In-the-Wild itself was already on `todo.md` as a generalization probe but had no
 The first implementation was intentionally reviewed before running full experiments. The following issues were fixed:
 
 - Partial checkpoint loading for SSL models was removed. Missing or unexpected checkpoint keys now raise an error, because partial loads can silently produce invalid EER values.
-- The fairseq dependency now prefers each repo's pinned `fairseq-*` folder. PyPI fairseq is only a fallback. Kaggle's current pip rejects old `omegaconf` metadata, so the installer downgrades to `pip<24.1` and uses pip's legacy resolver for the pinned fairseq editable install.
-- The pinned fairseq source directory is also inserted into `sys.path`, and the notebook verifies `import fairseq` immediately after install. This handles Kaggle sessions where editable install succeeds but the current kernel does not refresh module resolution.
+- The fairseq dependency now uses each repo's pinned `fairseq-*` folder when present; otherwise it clones `pytorch/fairseq` at commit `a54021305d6b3c4c5959ac9395135f63202db8f1` into `/kaggle/working`. PyPI fairseq is intentionally avoided because Kaggle's current pip rejects old `omegaconf` metadata and the released wheel can drift from the XLS-R checkpoint code.
+- The fairseq bootstrap downgrades to `pip<24.1`, installs Python-3.12-compatible runtime/build dependencies, and imports fairseq directly from the patched source tree on `sys.path`. It intentionally avoids editable fairseq builds, because the old fairseq packaging path is brittle on Kaggle's Python 3.12 runtime.
+- The pinned fairseq source directory is inserted into `sys.path`, and the notebook verifies `import fairseq` immediately after dependency setup. This keeps the active kernel pointed at the patched source tree.
 - Old fairseq dataclass config defaults are patched automatically for Python 3.12 by rewriting mutable defaults like `common: CommonConfig = CommonConfig()` to `field(default_factory=CommonConfig)`.
 - Hydra 1.0.x is installed as a fairseq dependency and has the same Python 3.12 dataclass issue. The notebook patches `hydra/conf/__init__.py` before importing fairseq, then clears `fairseq`, `hydra`, and `omegaconf` from `sys.modules` for a clean import.
 - Because fairseq's old `hydra_init()` reads dataclass `.default`, it also needs a small patch after converting fields to `default_factory`; the notebook now instantiates `field_info.default_factory()` before registering configs with Hydra.
@@ -150,8 +157,8 @@ The first implementation was intentionally reviewed before running full experime
 ### Required Kaggle input paths for the SSL models
 
 - `/kaggle/input/datasets/minhbhm/sdd-survey/checkpoints/xlsr_aasist/Best_LA_model_for_DF.pth` — TakHemlata pretrained anti-spoofing weights (Google Drive link in their README).
-- `/kaggle/input/datasets/minhbhm/sdd-survey/checkpoints/wav2vec2_nes2net/<file>.pth` — Liu-Tianchi pretrained averaged checkpoint, e.g. `wav2vec2_Nes2Net_X_e100_bz12_lr2.5e_07_algo4_seed12345_avg_ckpt_ep59_61_69.pth`.
-- `xlsr2_300m.pt` is auto-downloaded from `https://dl.fbaipublicfiles.com/fairseq/wav2vec/xlsr2_300m.pt` if not pre-staged. `fairseq` is `pip install`-ed at runtime.
+- `/kaggle/input/datasets/minhbhm/sdd-survey/checkpoints/wav2vec2_nes2net/<file>.pth` — Liu-Tianchi pretrained averaged checkpoint, e.g. `wav2vec2_Nes2Net_X_e100_bz12_lr2.5e_07_algo4_seed12345_avg_ckpt_ep59_61_69.pth`. If it is not attached as a Kaggle dataset, the notebook tries to download Google Drive id `1JFGv_2TONMnTLGbiOIuHFfMvuo4SIIpg` to `/kaggle/working/wav2vec2_nes2net/pretrained_nes2net.pth`.
+- `/kaggle/input/datasets/minhbhm/sdd-survey/checkpoints/xlsr/xlsr2_300m.pt` — XLS-R 300M base SSL checkpoint. The notebooks now preflight this Kaggle input before running SSL models, so attach it as a dataset instead of relying on runtime download. Direct URL: `https://dl.fbaipublicfiles.com/fairseq/wav2vec/xlsr2_300m.pt`.
 
 ### References used for dataset structure
 

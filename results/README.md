@@ -10,17 +10,23 @@ All scores are produced by models trained/evaluated on Kaggle (GPU: P100/T4).
 ```
 results/
 ├── asvspoof19/
-│   └── results.pkl                           # eval scores for 4 models on ASVspoof 2019 LA, 2 pending
+│   └── results.pkl                           # eval scores for 6 models on ASVspoof 2019 LA
 ├── asvspoof21/
-│   └── results.pkl                           # eval scores for 4 models on ASVspoof 2021 DF, 2 pending
+│   └── results.pkl                           # eval scores for 5 models on ASVspoof 2021 DF (XLS-R+AASIST pending)
 ├── asvspoof5/
-│   └── results.pkl                           # eval scores for 4 models on ASVspoof 5 (2024), 2 pending
+│   └── results.pkl                           # eval scores for 6 models on ASVspoof 5 (2024)
 ├── in_the_wild/
-│   └── results.pkl                           # eval scores for 4 models on In-the-Wild, 2 pending
+│   └── results.pkl                           # eval scores for 5 models on In-the-Wild (XLS-R+AASIST pending)
 ├── checkpoints/
-│   └── lfcc_lcnn/
-│       ├── lfcc_lcnn.pth                     # trained weights (~407 KB)
-│       └── lfcc_lcnn_train_summary.json      # training history
+│   ├── lfcc_lcnn/
+│   │   ├── lfcc_lcnn.pth                     # trained weights (~407 KB)
+│   │   └── lfcc_lcnn_train_summary.json      # training history
+│   ├── wav2vec2_nes2net/
+│   │   └── pretrained_nes2net.pth            # XLS-R + Nes2Net-X back-end weights
+│   ├── xlsr/
+│   │   └── xlsr2_300m.pt                     # XLS-R 300M SSL front-end weights
+│   └── xlsr_aasist/
+│       └── Best_LA_model_for_DF.pth          # XLS-R + AASIST back-end weights
 └── README.md
 ```
 
@@ -62,7 +68,7 @@ with open("results/asvspoof19/results.pkl", "rb") as f:
 Evaluation on **ASVspoof 2019 LA** eval set.
 - Total records: **71,237 utterances**
 - Breakdown: 7,355 bonafide + 63,882 spoof
-- 4 models evaluated, 2 methods pending
+- 6 models evaluated
 
 | Key | Model | EER (%) |
 |-----|-------|---------|
@@ -70,8 +76,8 @@ Evaluation on **ASVspoof 2019 LA** eval set.
 | `AASIST-L` | Lightweight AASIST | 6.74 |
 | `AASIST3` | Wav2Vec2 + KAN + AASIST | 20.83 |
 | `LFCC+LCNN` | Hand-crafted features + CNN | 19.64 |
-| `XLS-R+AASIST` | XLS-R 300M + AASIST back-end | pending |
-| `XLS-R+Nes2Net` | XLS-R 300M + Nes2Net-X back-end | pending |
+| `XLS-R+AASIST` | XLS-R 300M + AASIST back-end | 1.17 |
+| `XLS-R+Nes2Net` | XLS-R 300M + Nes2Net-X back-end | 0.45 |
 
 ---
 
@@ -80,7 +86,7 @@ Evaluation on **ASVspoof 2019 LA** eval set.
 Evaluation on **ASVspoof 2021 DF** eval set.
 - Total records: **458,868 utterances**
 - Breakdown: 16,977 bonafide + 441,891 spoof
-- 4 models evaluated, 2 methods pending
+- 5 models evaluated, 1 pending
 
 | Key | Model | EER (%) |
 |-----|-------|---------|
@@ -89,7 +95,7 @@ Evaluation on **ASVspoof 2021 DF** eval set.
 | `AASIST3` | Wav2Vec2 + KAN + AASIST | 29.18 |
 | `LFCC+LCNN` | Hand-crafted features + CNN | 33.81 |
 | `XLS-R+AASIST` | XLS-R 300M + AASIST back-end | pending |
-| `XLS-R+Nes2Net` | XLS-R 300M + Nes2Net-X back-end | pending |
+| `XLS-R+Nes2Net` | XLS-R 300M + Nes2Net-X back-end | 2.93 |
 
 > The large EER increase from 2019 → 2021 is expected: ASVspoof 2021 DF applies
 > lossy codec compression which destroys the spectral artifacts that both models rely on.
@@ -101,7 +107,7 @@ Evaluation on **ASVspoof 2021 DF** eval set.
 Evaluation on **ASVspoof 5 (2024)** Track 1 eval set.
 - Total records: **140,950 utterances**
 - Breakdown: 31,334 bonafide + 109,616 spoof
-- 4 models evaluated, 2 methods pending
+- 6 models evaluated
 
 | Key | Model | EER (%) |
 |-----|-------|---------|
@@ -109,8 +115,8 @@ Evaluation on **ASVspoof 5 (2024)** Track 1 eval set.
 | `AASIST-L` | Lightweight AASIST | 39.47 |
 | `AASIST3` | Wav2Vec2 + KAN + AASIST | 19.03 |
 | `LFCC+LCNN` | Hand-crafted features + CNN | 22.60 |
-| `XLS-R+AASIST` | XLS-R 300M + AASIST back-end | pending |
-| `XLS-R+Nes2Net` | XLS-R 300M + Nes2Net-X back-end | pending |
+| `XLS-R+AASIST` | XLS-R 300M + AASIST back-end | 2.55 |
+| `XLS-R+Nes2Net` | XLS-R 300M + Nes2Net-X back-end | 1.80 |
 
 > ASVspoof 5 is the hardest generalization test: attacks are more diverse and
 > include real-world codec/compression conditions. AASIST and AASIST-L degrade
@@ -124,7 +130,7 @@ Evaluation on **In-the-Wild** (Müller et al., 2022 — "Does Audio Deepfake Det
 - Total records: **31,779 utterances**
 - Breakdown: 19,963 bonafide + 11,816 spoof
 - 58 speakers (celebrities and politicians)
-- 4 models evaluated, 2 methods pending
+- 5 models evaluated, 1 pending
 
 Note: the public dataset distribution is 19,963 real/genuine files and 11,816 fake/spoof files.
 If a local pickle reports the reverse under `labels`, that pickle was produced with inverted
@@ -137,7 +143,7 @@ In-the-Wild label IDs and should be regenerated before using label-dependent met
 | `AASIST3` | Wav2Vec2 + KAN + AASIST | 40.12 |
 | `LFCC+LCNN` | Hand-crafted features + CNN | 70.23 |
 | `XLS-R+AASIST` | XLS-R 300M + AASIST back-end | pending |
-| `XLS-R+Nes2Net` | XLS-R 300M + Nes2Net-X back-end | pending |
+| `XLS-R+Nes2Net` | XLS-R 300M + Nes2Net-X back-end | 5.57 |
 
 > In-the-Wild is the primary cross-domain generalization probe: audio scraped from
 > social media with unknown synthesis pipelines, real-world noise, and mixed codecs.
@@ -169,6 +175,29 @@ Training history — 10 epochs, batch size 64:
 
 > High train accuracy does not reflect eval EER (19.64% on 2019 LA, 33.81% on 2021 DF)
 > — indicates overfitting to training codec conditions.
+
+---
+
+## `checkpoints/xlsr/`
+
+Pretrained **XLS-R 300M** SSL front-end weights, used as the feature extractor for
+both `XLS-R+AASIST` and `XLS-R+Nes2Net`. Not trained in this project — sourced from
+the official Fairseq XLS-R release.
+
+- `xlsr2_300m.pt` — Fairseq state dict, ~1.2 GB
+
+## `checkpoints/xlsr_aasist/`
+
+Pretrained **XLS-R + AASIST** back-end weights from the SSL-AASIST authors. Used
+without further fine-tuning in this survey.
+
+- `Best_LA_model_for_DF.pth` — best checkpoint reported by the authors for LA→DF generalization
+
+## `checkpoints/wav2vec2_nes2net/`
+
+Pretrained **Nes2Net-X** back-end weights pairing with the XLS-R front-end. Used as-is.
+
+- `pretrained_nes2net.pth` — Nes2Net-X state dict
 
 ---
 
