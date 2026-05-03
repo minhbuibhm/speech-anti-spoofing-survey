@@ -1,0 +1,74 @@
+Bạn là research assistant cho một báo cáo Speech Deepfake Detection (SDD) viết bằng tiếng Việt. Nhiệm vụ: research sâu về **paradigm SSL front-end + back-end nhẹ** (với XLS-R + Nes2Net-X làm canonical example) và viết notes chi tiết bằng tiếng Việt.
+
+**Mục tiêu cuối cùng:** Notes này sẽ được chắt lọc thành mục con §2.3.2 trong report.md (~300-400 từ trong báo cáo cuối, nhưng notes có thể dài hơn 2x để có đủ chi tiết để chọn lọc).
+
+**Phạm vi cần cover (đi sâu hơn nội dung hiện có):**
+
+### Phần A — SSL Front-end (XLS-R làm canonical, có so sánh ngắn với WavLM/HuBERT):
+
+1. **XLS-R 300M:**
+   - Pre-training data: ~436K giờ audio đa ngôn ngữ (128 ngôn ngữ), từ VoxPopuli, MLS, CommonVoice, BABEL, VoxLingua107
+   - Pre-training objective: contrastive masked prediction (giống wav2vec 2.0) — model quantize feature → mask một phần → predict masked vector trong tập âm thanh có sẵn
+   - Architecture: CNN feature encoder + Transformer encoder (24 layers cho 300M version)
+   - Output: layer-wise representation tensor [time × hidden_dim], thường lấy từ một số layer chọn lọc
+
+2. **So sánh ngắn với các SSL front-end khác:**
+   - **Wav2Vec2:** chỉ pre-train tiếng Anh, base/large
+   - **WavLM Base/Large:** pre-train với mục tiêu denoising + masked prediction → robust hơn với noisy/codec audio
+   - **HuBERT:** dùng cluster-based target → thường tốt cho ASR hơn anti-spoofing
+   - Lý do dùng XLS-R cho SDD: đa ngôn ngữ giúp model học representation âm học general hơn, không bias theo phonetic của một ngôn ngữ
+
+3. **Tại sao SSL prior giúp anti-spoofing:**
+   - Pre-training trên audio thật chất lượng cao → model có "bonafide prior" mạnh
+   - Representation phong phú giúp pick up các artifact mà feature engineering bỏ qua
+   - Trên audio bị codec compress, nhiều artifact phổ truyền thống bị xóa, nhưng representation từ SSL vẫn giữ được dấu vết bất thường ở mức biểu diễn high-level
+
+### Phần B — Back-end nhẹ tiêu thụ SSL features:
+
+4. **Vấn đề khi đưa SSL features vào back-end:**
+   - SSL features có nhiều layer (24+ layers cho XLS-R 300M); mỗi layer chứa thông tin khác nhau (lower layers = acoustic, higher layers = phonetic/linguistic)
+   - Câu hỏi: dùng layer nào? trung bình toàn bộ? hay weighted sum học được?
+
+5. **Các back-end phổ biến cho SSL features:**
+   - **AASIST back-end** (đã cover trong §2.3.1)
+   - **Nes2Net / Nes2Net-X** (Liu et al., IEEE TIFS 2025, arXiv:2504.05657)
+   - **MFA (Multi-Fusion Attention)**
+   - **SLS (Sensitive Layer Selection)**
+
+6. **Nes2Net-X đi sâu (canonical example):**
+   - Tên: "Nested Res2Net" — kiến trúc nested multi-scale
+   - Cách xử lý high-dimensional SSL features mà KHÔNG cần dimensionality reduction layer
+   - Concatenation + learnable weighted summation (thay vì additive combination như nhiều back-end khác)
+   - Cho phép model ưu tiên các SSL layer thông tin hơn
+   - Lightweight: ~511K params (back-end only)
+   - Báo cáo: ~22% relative improvement over baseline + 87% reduction in back-end computational cost
+   - SOTA trên ASVspoof 5 và In-the-Wild (theo paper)
+
+7. **Tại sao paradigm này có xu hướng tổng quát hoá tốt hơn:**
+   - SSL front-end mang prior từ pre-training quy mô lớn → robust với unseen attacks và codec
+   - Back-end nhẹ chỉ học mapping từ SSL representation sang binary classification → ít overfit
+   - Trong phạm vi kết quả gần đây (ASVspoof 2021 DF, ASVspoof 5, In-the-Wild), các hệ thống SSL+back-end nhẹ cho thấy gap nhỏ hơn giữa cross-domain test set và training set
+
+8. **Trade-off:**
+   - Inference cost cao do SSL front-end ~300M params
+   - Phải fine-tune front-end + back-end → cần GPU lớn
+   - Ngược lại: training data efficiency cao hơn (vì đã có pre-training prior)
+
+**Yêu cầu format:**
+- Viết bằng tiếng Việt học thuật, văn phong mềm ("có xu hướng", "kết quả gợi ý", "trong phạm vi khảo sát"), tránh assertion quá mạnh
+- Trích dẫn IEEE-style cuối file
+- References quan trọng:
+  - Babu et al., "XLS-R: Self-supervised Cross-lingual Speech Representation Learning at Scale," Interspeech 2022 (arXiv:2111.09296)
+  - Baevski et al., "wav2vec 2.0: A Framework for Self-Supervised Learning of Speech Representations," NeurIPS 2020
+  - Chen et al., "WavLM: Large-Scale Self-Supervised Pre-Training for Full Stack Speech Processing," IEEE JSTSP 2022
+  - Liu et al., "Nes2Net: A Lightweight Nested Architecture for Foundation Model Driven Speech Anti-spoofing," IEEE TIFS 2025 (arXiv:2504.05657)
+  - Tak et al., Odyssey 2022 (arXiv:2202.12233)
+- Có thể dùng web search nếu cần
+
+**File output:** Append (KHÔNG overwrite) vào file `e:\minhbh\HCMUT\projects\252-internship-1\report\notes\sotas.md`.
+
+**Quan trọng:** Chỉ tạo nội dung mục `## 2. SSL Front-end + Back-end Paradigm (canonical: XLS-R + Nes2Net-X)`. KHÔNG đụng vào mục `## 1. AASIST...` (agent khác đang viết — có thể chưa có lúc bạn đọc file). Nếu file chưa tồn tại hoặc chưa có mục 1, vẫn append mục 2 với heading rõ ràng — sẽ sort lại sau.
+
+Vì 2 agent chạy song song có thể conflict khi cùng write, dùng Read để check trước, và nếu file thay đổi giữa Read và Write của bạn, retry. Để tránh race condition: append at end of file dùng Edit với old_string là dòng cuối cùng + new_string là dòng cuối cùng + nội dung mới.
+
+Báo cáo tóm tắt ngắn gọn (under 150 từ) sau khi hoàn thành.

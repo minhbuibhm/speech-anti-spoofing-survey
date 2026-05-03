@@ -1,0 +1,53 @@
+Bạn là research assistant cho một báo cáo Speech Deepfake Detection (SDD) viết bằng tiếng Việt. Nhiệm vụ: research sâu về **AASIST** (Audio Anti-Spoofing using Integrated Spectro-Temporal Graph Attention Networks) và viết notes chi tiết bằng tiếng Việt.
+
+**Mục tiêu cuối cùng:** Notes này sẽ được chắt lọc thành mục con §2.3.1 trong report.md (~250-350 từ trong báo cáo cuối, nhưng notes có thể dài hơn 2x để có đủ chi tiết để chọn lọc).
+
+**Phạm vi cần cover (đi sâu hơn nội dung hiện có):**
+
+1. **Pipeline tổng quan của AASIST:**
+   - Đầu vào: raw waveform
+   - Sinc convolution layer (RawNet2-style encoder) → trích xuất biểu diễn thời gian-tần số
+   - Cách model phân tách thành spectral branch và temporal branch
+   - Output: classifier head (bonafide/spoof)
+
+2. **Heterogeneous graph construction:**
+   - Spectral graph: nodes là gì? (frequency sub-bands? time-frequency tiles?)
+   - Temporal graph: nodes là gì? (time segments? frames?)
+   - Cách edges được định nghĩa (fully-connected? learnable?)
+   - Tại sao lại "dị thể" (heterogeneous) — vì hai loại node có ý nghĩa khác nhau
+
+3. **HS-GAL (Heterogeneous Stacking Graph Attention Layer):**
+   - Vai trò của "stack node" (master node)
+   - Cơ chế attention dị thể: làm sao kết nối spectral nodes với temporal nodes qua stack node
+   - Công thức attention (high-level, không cần chi tiết toán học)
+   - Cách HS-GAL khác biệt với GAT thông thường
+
+4. **Graph pooling và readout:**
+   - Sau HS-GAL → pooling như thế nào để ra representation cuối
+   - Max pooling? Attention pooling?
+
+5. **Tại sao AASIST hiệu quả:**
+   - Bắt được long-range dependencies trên cả miền phổ và thời gian
+   - Đặc biệt phù hợp với spoofing artifacts (có thể nằm ở vùng phổ cao hoặc xuất hiện ngắt quãng theo thời gian)
+   - Compact (~297K params) mà vẫn đạt EER 0.83% trên ASVspoof 2019 LA
+
+6. **Hạn chế:**
+   - Pre-training trên raw audio (không có SSL prior) → khả năng generalize sang codec-compressed audio kém
+   - Khi không kết hợp SSL front-end, EER tăng mạnh trên ASVspoof 2021 DF, ASVspoof 5
+
+7. **Vai trò trong hệ sinh thái 2022-2026:**
+   - AASIST trở thành de-facto back-end khi kết hợp với SSL front-end (XLS-R, WavLM, HuBERT)
+   - Các biến thể: AASIST-L (lightweight, ~85K params), AASIST3 (KAN + Wav2Vec2), AASIST-SSL
+
+**Yêu cầu format:**
+- Viết bằng tiếng Việt học thuật, văn phong mềm ("có xu hướng", "kết quả gợi ý", "trong phạm vi khảo sát"), tránh assertion quá mạnh
+- Tham khảo paper gốc: Jung et al., "AASIST: Audio Anti-Spoofing using Integrated Spectro-Temporal Graph Attention Networks," ICASSP 2022 (arXiv:2110.01200)
+- Tham khảo paper SSL+AASIST: Tak et al., Odyssey 2022 (arXiv:2202.12233)
+- Trích dẫn IEEE-style cuối file
+- Có thể dùng web search nếu cần (AASIST official repo: clovaai/aasist trên GitHub)
+
+**File output:** Append (KHÔNG overwrite) vào file `e:\minhbh\HCMUT\projects\252-internship-1\report\notes\sotas.md`. Bắt đầu bằng heading `## 1. AASIST — Heterogeneous Graph Attention Mechanism` (vì agent kia sẽ thêm `## 2. SSL Front-end + Back-end Paradigm`). Nếu file chưa tồn tại, tạo mới với heading `# Notes: SOTA Architectures cho Speech Deepfake Detection` ở đầu file rồi mới đến mục 1.
+
+**Quan trọng:** chỉ tạo nội dung tương ứng `## 1. AASIST...`. KHÔNG đụng vào nội dung khác trong file. Dùng Read trước khi Write/Edit.
+
+Báo cáo tóm tắt ngắn gọn (under 150 từ) sau khi hoàn thành về những gì đã viết.
