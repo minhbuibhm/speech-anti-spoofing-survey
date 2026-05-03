@@ -77,26 +77,62 @@ Quy ước:
 
 ### C.2 Viết vào report.md (chắt lọc từ notes)
 
-- [ ] **C4. §2.1 Bài toán và các loại tấn công**
+- [x] **C4. §2.1 Bài toán và các loại tấn công**
   - Output: định nghĩa bài toán phân loại nhị phân, liệt kê các loại tấn công chính, mô tả pipeline tổng quát của một SDD system (frontend → backend → classifier).
   - Source: chắt lọc từ `notes/attacks.md`.
 
-- [ ] **C5. §2.2 Datasets — phân loại và mô tả các benchmark chính**
+- [x] **C5. §2.2 Datasets — phân loại và mô tả các benchmark chính**
   - Output: bảng tổng hợp datasets (tên, năm, kích thước, attack types, đặc điểm), giải thích tại sao ASVspoof 2019/2021/5 và In-the-Wild được chọn cho phần reproduce.
   - Yêu cầu: nhấn mạnh trend thách thức theo thời gian (clean → codec → adversarial → in-the-wild).
   - Source: chắt lọc từ `notes/datasets.md`.
 
-- [ ] **C6. §2.3 Architectures — phân loại và mô tả các approach**
+- [x] **C6. §2.3 Architectures — phân loại và mô tả các approach**
   - Output: phân loại theo cây (hand-crafted, end-to-end DNN, SSL+back-end), với mỗi nhóm có pros/cons/trade-off.
   - Yêu cầu: tập trung kỹ vào nhóm SSL + back-end vì đó là nhóm tiềm năng và được reproduce.
   - Source: chắt lọc từ `notes/architectures.md`.
 
-- [ ] **C7. §2.4 Evaluation metrics**
+- [x] **C7. §2.4 Evaluation metrics**
   - Output: định nghĩa EER (kèm công thức), giải thích min t-DCF, mô tả ROC/DET curve.
   - Source: `notes/metrics.md`.
 
-- [ ] **C8. §2.5 Thách thức hiện tại**
+- [x] **C8. §2.5 Thách thức hiện tại**
   - Output: chắt lọc thành 3-4 thách thức cụ thể (cross-dataset generalization, codec robustness, adversarial attacks, real-world conditions) — kèm reference đến paper survey.
+
+- [x] **C9. Mở rộng §2.1 thành định nghĩa bài toán + threat model đầy đủ**
+  - Output: §2.1 không chỉ liệt kê attack types mà còn giải thích rõ CM pipeline, score/threshold, quan hệ giữa Speech Deepfake Detection và ASV anti-spoofing, khác biệt giữa Logical Access, Physical Access, Deepfake/in-the-wild và adversarial setting.
+  - Yêu cầu: giữ nguyên các thuật ngữ chuyên ngành tiếng Anh khi tự nhiên hơn: `countermeasure`, `front-end`, `back-end`, `bonafide`, `spoof`, `Logical Access`, `Physical Access`, `replay`, `threat model`.
+
+- [x] **C10. Viết lại §2.2 theo cấu trúc taxonomy → bảng → mô tả benchmark chính**
+  - Output: §2.2 có taxonomy datasets theo các trục LA/PA, clean/in-the-wild, multi-attack/adversarial, mono/multi-lingual; sau đó là bảng tổng hợp và đoạn mô tả vai trò của từng benchmark chính.
+  - Yêu cầu: phân biệt rõ `official dataset size` và `subset/split used in this project`; không đưa claim chưa verify vào giọng văn chắc chắn.
+
+- [x] **C11. Chuẩn hoá số liệu dataset**
+  - Output: các số liệu ASVspoof 2019/2021/5, In-the-Wild, MLAAD, WaveFake, FoR trong `report.md` thống nhất với notes hoặc được ghi rõ là số liệu dùng trong project.
+  - Yêu cầu: EchoFake hoặc dataset quá mới chỉ ghi như hướng mở rộng cần verify, không đưa số lượng ước tính như một fact chính thức nếu chưa có nguồn chắc.
+
+- [x] **C12. Mở rộng §2.3 architectures theo nguyên lý + inductive bias + failure mode**
+  - Output: mỗi nhóm kiến trúc có mô tả cách hoạt động, ưu/nhược điểm, chi phí tính toán, lý do có thể generalize tốt/kém, và liên hệ với 6 mô hình reproduce.
+  - Yêu cầu: tập trung sâu hơn vào nhóm `SSL front-end + lightweight back-end` vì đây là nhóm dẫn dắt kết quả Chương 3 và đề xuất Chương 4.
+
+- [x] **C13. Nâng cấp Bảng 2.2**
+  - Output: bảng so sánh 6 mô hình có thêm input representation, compute cost, điểm mạnh, hạn chế/failure mode, thay vì chỉ có params và EER paper.
+  - Yêu cầu: không kết luận tuyệt đối; dùng "kỳ vọng", "có xu hướng", "trong các benchmark đã công bố".
+
+- [x] **C14. Mở rộng §2.4 metrics**
+  - Output: giải thích FAR, FRR, EER bằng công thức; nói rõ cách sweep threshold; bổ sung hạn chế của EER, ý nghĩa min t-DCF, DET/ROC và calibration.
+  - Yêu cầu: giải thích vì sao report dùng EER là metric chính trong phạm vi Internship 1.
+
+- [x] **C15. Viết lại §2.5 thành synthesis section**
+  - Output: mỗi challenge nối được `dataset evidence → architecture weakness → expectation for experiments`; các challenge chính gồm cross-domain generalization, codec robustness, modern attacks/adversarial, multilingual/fairness ở mức định hướng.
+  - Yêu cầu: phần này phải dẫn tự nhiên sang Chương 3, không chỉ lặp lại Chương 1.
+
+- [x] **C16. Thêm citation và references cho toàn bộ Chương 2**
+  - Output: các claim chính trong §2.1-§2.5 có citation; phần `Tài liệu tham khảo` có danh sách paper/dataset/model liên quan theo format nhất quán.
+  - Yêu cầu: ưu tiên paper gốc/survey chính; hạn chế nguồn không chính thức.
+
+- [x] **C17. Rà lại wording để tránh overclaim**
+  - Output: các cụm như "SOTA", "dominate", "robust hơn đáng kể", "hiện đại nhất" được thay bằng ngôn ngữ học thuật thận trọng hoặc có citation rõ.
+  - Yêu cầu: phù hợp scope Internship 1 — literature survey + reproduce + preliminary diagnosis.
 
 ---
 
@@ -139,7 +175,7 @@ Quy ước:
   - Yêu cầu: ý niệm thôi, chi tiết sẽ ở Internship 2 (đề cương luận văn).
 
 - [ ] **E3. §4.3 Future work**
-  - Output: liệt kê các bước Internship 2 sẽ làm: implement đề xuất, evaluate, analyze; mở rộng sang EchoFake (2025); thử các SSL khác (WavLM, multi-lingual XLS-R).
+  - Output: liệt kê các bước Internship 2 sẽ làm: implement đề xuất, evaluate, analyze; cân nhắc mở rộng sang dataset mới sau khi verify nguồn chính thức; thử các SSL khác (WavLM, multi-lingual XLS-R).
 
 ---
 
