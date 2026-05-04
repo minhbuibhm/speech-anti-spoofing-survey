@@ -108,6 +108,13 @@ def save_results_pickle(results: dict, output_path: Path) -> None:
     """Persist the unified dataset results file after each model finishes."""
     slim = {}
     for model_name, result in results.items():
+        # Keep dataset-level metadata such as evaluated utterance IDs when a
+        # patched results.pkl is reused for additional model evaluation.
+        if str(model_name).startswith("__"):
+            slim[model_name] = result
+            continue
+        if not isinstance(result, dict) or "scores" not in result or "labels" not in result:
+            continue
         slim[model_name] = {
             "eer": float(result["eer"]),
             "scores": np.asarray(result["scores"], dtype=np.float64),
@@ -1656,10 +1663,13 @@ INPUT_RESULTS = [
 ]
 
 # ASVspoof 5 Track 1 is stand-alone countermeasure evaluation: bonafide vs spoof.
-# Use "dev" first for a full-system trial, then "eval" for the official large run.
-ASV5_SPLIT = "dev"       # "train", "dev", or "eval"
+# The report-facing run should use the official eval split. The dev split was
+# useful for trial runs, but it does not contain the full codec/attack coverage
+# needed for the final ASVspoof 5 error analysis.
+ASV5_SPLIT = "eval"      # "train", "dev", or "eval"
 ASV5_TRACK = "track_1"   # this notebook evaluates Track 1 only
 ASV5_SOURCE = "hf_tar"   # "hf_tar", "auto", "local", or "hf_webdataset"
+RUN_ASV5_TAR_SHARD_BY_SHARD = True
 SMOKE_TEST_N = None
 HF_DEBUG_N = 30
 FORCE_EVAL = {
@@ -1836,13 +1846,42 @@ else:
 
 print(f"resolved ASVspoof 5 source: {RESOLVED_ASV5_SOURCE}")
 results = load_pickle_results(INPUT_RESULTS)
+
+
+def asv5_results_match_config(existing_results: dict) -> bool:
+    """Return whether an existing ASVspoof 5 results.pkl matches this run.
+
+    The project previously produced ASVspoof 5 dev-split results. Those files
+    may still be attached through the shared Kaggle dataset, so blindly reusing
+    them would make the eval notebook skip all models. For the official eval run
+    we only reuse a results.pkl that carries explicit dataset-level metadata
+    confirming the same split and track.
+    """
+    if not existing_results:
+        return True
+    metadata = existing_results.get("__metadata__")
+    if not isinstance(metadata, dict):
+        return False
+    return metadata.get("dataset") == DATASET_KEY and metadata.get("split") == ASV5_SPLIT and metadata.get("track") == ASV5_TRACK
+
+
+if not asv5_results_match_config(results):
+    print(
+        "Ignoring existing ASVspoof 5 results.pkl because it does not declare "
+        f"dataset={DATASET_KEY}, split={ASV5_SPLIT}, track={ASV5_TRACK}. "
+        "This prevents dev-split results from being reused for the eval run."
+    )
+    results = {}
 '''
 
 
 ASV5_HF_CODE = r'''
 ASV5_HF_REPO_ID = "jungjee/asvspoof5"
 ASV5_CACHE_DIR = Path("/kaggle/working/asvspoof5_hf_cache")
+ASV5_TAR_WORK_DIR = Path("/kaggle/working/asvspoof5_tar_shards")
 ASV5_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+ASV5_TAR_WORK_DIR.mkdir(parents=True, exist_ok=True)
+DELETE_ASV5_TAR_AFTER_USE = True
 
 
 def ensure_hf_hub():
@@ -1865,6 +1904,36 @@ def hf_download_asv5_file(filename: str) -> Path:
         cache_dir=str(ASV5_CACHE_DIR),
     )
     return Path(path)
+
+
+def hf_download_asv5_tar_shard(filename: str) -> Path:
+    """Download one large ASVspoof 5 FLAC tar shard into a disposable folder.
+
+    Kaggle working disk can be much smaller than the full eval split. Therefore
+    shard files must not accumulate in the Hugging Face cache. `local_dir` keeps
+    the requested tar visible as a normal file under ASV5_TAR_WORK_DIR, which we
+    remove immediately after that shard has been scanned/evaluated.
+    """
+    hf_hub_download = ensure_hf_hub()
+    path = hf_hub_download(
+        repo_id=ASV5_HF_REPO_ID,
+        repo_type="dataset",
+        filename=filename,
+        local_dir=str(ASV5_TAR_WORK_DIR),
+    )
+    return Path(path)
+
+
+def remove_asv5_tar_shard(path: Path) -> None:
+    """Delete one local ASVspoof 5 tar shard after it has been consumed."""
+    if not DELETE_ASV5_TAR_AFTER_USE:
+        return
+    try:
+        if path.exists():
+            path.unlink()
+            print(f"deleted local ASVspoof 5 shard: {path}")
+    except Exception as exc:
+        print(f"warning: could not delete ASVspoof 5 shard {path}: {exc}")
 
 
 def hf_tar_names_for_split(split: str) -> list[str]:
@@ -1903,6 +1972,14 @@ def read_protocol_from_hf_tar(split: str) -> str:
 def load_asv5_hf_tar_protocol(split: str) -> dict:
     """Load Track 1 protocol rows directly from the protocol tar file."""
     text = read_protocol_from_hf_tar(split)
+    # Keep the exact protocol text next to results.pkl so the Kaggle dataset
+    # upload contains everything error_analysis.ipynb needs later without
+    # downloading ASVspoof 5 again.
+    protocol_name = "ASVspoof5.train.tsv" if split == "train" else f"ASVspoof5.{split}.{ASV5_TRACK}.tsv"
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    protocol_out = OUTPUT_DIR / protocol_name
+    protocol_out.write_text(text, encoding="utf-8")
+    print(f"saved ASVspoof 5 protocol copy: {protocol_out}")
     meta = {}
     for line in text.splitlines():
         parts = line.strip().split()
@@ -1929,23 +2006,258 @@ def load_asv5_hf_tar_protocol(split: str) -> dict:
 
 
 def iter_asv5_hf_tar_audio(protocol: dict):
-    """Yield (utt_id, flac_bytes) from downloaded ASVspoof 5 tar shards."""
+    """Yield (utt_id, flac_bytes) from ASVspoof 5 tar shards, one shard at a time.
+
+    Eval split shards are ~8.45 GB each and Kaggle working disk may not hold all
+    ten shards. This iterator downloads exactly one shard, streams all matching
+    FLAC payloads from it, then deletes the local tar before moving to the next
+    suffix (_aa, _ab, ..., _aj).
+    """
     for filename in hf_tar_names_for_split(ASV5_SPLIT):
-        tar_path = hf_download_asv5_file(filename)
+        tar_path = hf_download_asv5_tar_shard(filename)
         print(f"streaming {filename}: {tar_path}")
-        with tarfile.open(tar_path, "r:*") as tar:
-            for member in tar:
-                if not member.isfile():
-                    continue
-                utt_id = Path(member.name).name
-                if utt_id.endswith(".flac"):
-                    utt_id = utt_id[:-5]
-                if utt_id not in protocol:
-                    continue
-                extracted = tar.extractfile(member)
-                if extracted is None:
-                    continue
-                yield utt_id, extracted.read()
+        try:
+            with tarfile.open(tar_path, "r:*") as tar:
+                for member in tar:
+                    if not member.isfile():
+                        continue
+                    utt_id = Path(member.name).name
+                    if utt_id.endswith(".flac"):
+                        utt_id = utt_id[:-5]
+                    if utt_id not in protocol:
+                        continue
+                    extracted = tar.extractfile(member)
+                    if extracted is None:
+                        continue
+                    yield utt_id, extracted.read()
+        finally:
+            remove_asv5_tar_shard(tar_path)
+
+
+def scan_asv5_hf_tar_shard(tar_path: Path, protocol: dict) -> pd.DataFrame:
+    """Return metadata rows for one local ASVspoof 5 FLAC tar shard."""
+    rows = []
+    seen = set()
+    with tarfile.open(tar_path, "r:*") as tar:
+        for member in tar:
+            if not member.isfile():
+                continue
+            utt_id = Path(member.name).name
+            if utt_id.endswith(".flac"):
+                utt_id = utt_id[:-5]
+            if utt_id in seen or utt_id not in protocol:
+                continue
+            seen.add(utt_id)
+            meta = protocol[utt_id]
+            rows.append({
+                "utt_id": utt_id,
+                "label": int(meta["label"]),
+                "speaker": meta.get("speaker", "unknown"),
+                "codec": meta.get("codec", "unknown"),
+                "attack_tag": meta.get("attack_tag", "unknown"),
+                "attack": meta.get("attack", "unknown"),
+            })
+    df = pd.DataFrame(rows)
+    print(f"  shard rows: {len(df):,}")
+    if df.empty:
+        raise RuntimeError(f"ASVspoof 5 shard has no protocol-matched audio: {tar_path}")
+    if df["utt_id"].duplicated().any():
+        dupes = df.loc[df["utt_id"].duplicated(), "utt_id"].head(10).tolist()
+        raise RuntimeError(f"ASVspoof 5 shard produced duplicate utt_ids: {dupes}")
+    return df
+
+
+def iter_asv5_hf_tar_audio_from_path(tar_path: Path, protocol: dict, allowed_ids: set[str] | None = None):
+    """Yield matching audio payloads from an already-downloaded ASVspoof 5 shard."""
+    with tarfile.open(tar_path, "r:*") as tar:
+        for member in tar:
+            if not member.isfile():
+                continue
+            utt_id = Path(member.name).name
+            if utt_id.endswith(".flac"):
+                utt_id = utt_id[:-5]
+            if utt_id not in protocol:
+                continue
+            if allowed_ids is not None and utt_id not in allowed_ids:
+                continue
+            extracted = tar.extractfile(member)
+            if extracted is None:
+                continue
+            yield utt_id, extracted.read()
+
+
+def evaluate_asv5_hf_tar_model_on_shard(
+    model_name: str,
+    tar_path: Path,
+    shard_index: pd.DataFrame,
+    protocol: dict,
+    results: dict,
+    output_dir: Path,
+    force_eval: bool = False,
+    partial_save_every: int = 5000,
+    partial_input_dirs: list[Path] | None = None,
+) -> None:
+    """Append one shard of ASVspoof 5 scores to a model partial file.
+
+    The tar file is already local. The function loads exactly one model, scores
+    only utterances from this shard that are not already in the partial file, and
+    then releases the model before the next model/shard combination. This keeps
+    disk bounded by one tar shard and GPU memory bounded by one model.
+    """
+    if model_name in results and not force_eval:
+        print(f"{model_name}: complete result already present, skipping shard {tar_path.name}")
+        return
+
+    partial = load_partial(output_dir, model_name, partial_input_dirs)
+    if partial:
+        scores, labels, utt_ids = partial["scores"], partial["labels"], partial["utt_ids"]
+    else:
+        scores, labels, utt_ids = [], [], []
+    completed = set(utt_ids)
+    shard_ids = set(shard_index["utt_id"].astype(str))
+    todo_ids = shard_ids - completed
+    if not todo_ids:
+        print(f"{model_name}: shard {tar_path.name} already complete")
+        return
+
+    entry = MODEL_REGISTRY[model_name]
+    model = entry["loader"]()
+    pending = []
+    last_save = len(utt_ids)
+    try:
+        iterator = iter_asv5_hf_tar_audio_from_path(tar_path, protocol, allowed_ids=todo_ids)
+        for utt_id, audio_bytes in tqdm(iterator, desc=f"{model_name}:{tar_path.name}"):
+            if utt_id in completed:
+                continue
+            pending.append((utt_id, audio_bytes, int(protocol[utt_id]["label"])))
+            if len(pending) >= entry["batch_size"]:
+                batch_scores, batch_labels, batch_ids = predict_tar_batch(model, pending, entry)
+                scores.extend(float(x) for x in batch_scores)
+                labels.extend(int(x) for x in batch_labels)
+                utt_ids.extend(str(x) for x in batch_ids)
+                completed.update(batch_ids)
+                pending = []
+            if len(utt_ids) - last_save >= partial_save_every:
+                save_partial(output_dir, model_name, scores, labels, utt_ids)
+                last_save = len(utt_ids)
+        if pending:
+            batch_scores, batch_labels, batch_ids = predict_tar_batch(model, pending, entry)
+            scores.extend(float(x) for x in batch_scores)
+            labels.extend(int(x) for x in batch_labels)
+            utt_ids.extend(str(x) for x in batch_ids)
+    finally:
+        save_partial(output_dir, model_name, scores, labels, utt_ids)
+        release_model(model)
+        model = None
+    print(f"{model_name}: partial now has {len(utt_ids):,} utterances")
+
+
+def finalize_asv5_hf_tar_model(
+    model_name: str,
+    results: dict,
+    output_pkl: Path,
+    output_dir: Path,
+    expected_ids: set[str],
+    force_eval: bool = False,
+    partial_input_dirs: list[Path] | None = None,
+) -> None:
+    """Convert a completed ASVspoof 5 partial file into a result entry."""
+    if model_name in results and not force_eval:
+        print(f"{model_name}: complete result already present")
+        return
+    partial = load_partial(output_dir, model_name, partial_input_dirs)
+    if not partial or not partial["scores"]:
+        raise RuntimeError(f"{model_name}: no partial scores found after shard-by-shard ASVspoof 5 run")
+    completed = set(partial["utt_ids"])
+    missing = expected_ids - completed
+    if missing:
+        raise RuntimeError(f"{model_name}: missing {len(missing):,} ASVspoof 5 eval utterances; sample={sorted(missing)[:10]}")
+    eer = compute_eer(partial["scores"], partial["labels"])
+    results[model_name] = {
+        "eer": eer,
+        "scores": np.asarray(partial["scores"], dtype=np.float64),
+        "labels": np.asarray(partial["labels"], dtype=np.int64),
+    }
+    save_results_pickle(results, output_pkl)
+    clear_partial(output_dir, model_name)
+    print(f"{model_name}: EER={eer:.4f}% N={len(partial['scores']):,}")
+
+
+def run_asv5_hf_tar_shard_by_shard(
+    protocol: dict,
+    results: dict,
+    output_pkl: Path,
+    output_dir: Path,
+    enabled_models: list[str],
+    force_eval: dict[str, bool],
+    partial_save_every: int,
+    partial_input_dirs: list[Path] | None = None,
+) -> pd.DataFrame:
+    """Run ASVspoof 5 eval by downloading, processing, and deleting one tar shard.
+
+    This is the default path for Kaggle's limited working disk. It processes
+    `flac_E_aa.tar` through `flac_E_aj.tar` in order for eval, and at no point
+    requires all shards to be present on disk.
+    """
+    index_parts = []
+    total_rows = 0
+    for filename in hf_tar_names_for_split(ASV5_SPLIT):
+        tar_path = hf_download_asv5_tar_shard(filename)
+        print(f"processing ASVspoof 5 shard: {filename} ({tar_path})")
+        try:
+            shard_index = scan_asv5_hf_tar_shard(tar_path, protocol)
+            if SMOKE_TEST_N is not None:
+                remaining = max(0, SMOKE_TEST_N - total_rows)
+                shard_index = shard_index.iloc[:remaining].copy()
+            index_parts.append(shard_index)
+            total_rows += len(shard_index)
+            for model_name in enabled_models:
+                evaluate_asv5_hf_tar_model_on_shard(
+                    model_name=model_name,
+                    tar_path=tar_path,
+                    shard_index=shard_index,
+                    protocol=protocol,
+                    results=results,
+                    output_dir=output_dir,
+                    force_eval=force_eval.get(model_name, False),
+                    partial_save_every=partial_save_every,
+                    partial_input_dirs=partial_input_dirs,
+                )
+            if SMOKE_TEST_N is not None and total_rows >= SMOKE_TEST_N:
+                break
+        finally:
+            remove_asv5_tar_shard(tar_path)
+
+    full_index = pd.concat(index_parts, ignore_index=True) if index_parts else pd.DataFrame()
+    print("ASVspoof 5 shard-by-shard summary")
+    print(f"  protocol rows      : {len(protocol):,}")
+    print(f"  evaluated rows     : {len(full_index):,}")
+    if full_index.empty:
+        raise RuntimeError("ASVspoof 5 shard-by-shard run matched zero rows")
+    if SMOKE_TEST_N is None and len(full_index) != len(protocol):
+        missing = sorted(set(protocol) - set(full_index["utt_id"].astype(str)))
+        raise RuntimeError(
+            "ASVspoof 5 shard-by-shard run did not cover the complete protocol. "
+            f"matched={len(full_index):,}, protocol={len(protocol):,}, missing_sample={missing[:10]}"
+        )
+    if full_index["utt_id"].duplicated().any():
+        dupes = full_index.loc[full_index["utt_id"].duplicated(), "utt_id"].head(10).tolist()
+        raise RuntimeError(f"ASVspoof 5 shard-by-shard run produced duplicate utt_ids: {dupes}")
+
+    attach_asv5_results_metadata(results, full_index, source="hf_tar_shard_by_shard", protocol_rows=len(protocol))
+    save_results_pickle(results, output_pkl)
+    expected_ids = set(full_index["utt_id"].astype(str))
+    for model_name in enabled_models:
+        finalize_asv5_hf_tar_model(
+            model_name=model_name,
+            results=results,
+            output_pkl=output_pkl,
+            output_dir=output_dir,
+            expected_ids=expected_ids,
+            force_eval=force_eval.get(model_name, False),
+            partial_input_dirs=partial_input_dirs,
+        )
+    return full_index
 
 
 def build_asv5_hf_tar_index(protocol: dict) -> pd.DataFrame:
@@ -1975,8 +2287,43 @@ def build_asv5_hf_tar_index(protocol: dict) -> pd.DataFrame:
     print(f"  matched audio rows : {len(df):,}")
     if df.empty:
         raise RuntimeError("ASVspoof 5 HF tar scan matched zero audio rows.")
+    if SMOKE_TEST_N is None and len(df) != len(protocol):
+        missing = sorted(set(protocol) - set(df["utt_id"].astype(str)))
+        raise RuntimeError(
+            "ASVspoof 5 HF tar scan did not match the complete protocol. "
+            f"matched={len(df):,}, protocol={len(protocol):,}, missing_sample={missing[:10]}"
+        )
+    if df["utt_id"].duplicated().any():
+        duplicate_sample = df.loc[df["utt_id"].duplicated(), "utt_id"].head(10).tolist()
+        raise RuntimeError(f"ASVspoof 5 HF tar scan produced duplicate utt_ids: {duplicate_sample}")
+    print("  labels")
+    print(df["label"].value_counts().rename({1: "bonafide", 0: "spoof"}))
+    for column in ["codec", "attack_tag", "attack"]:
+        if column in df:
+            print(f"  unique {column}: {df[column].nunique():,}")
     print(df.head())
     return df
+
+
+def attach_asv5_results_metadata(results: dict, index_df: pd.DataFrame, source: str, protocol_rows: int) -> None:
+    """Attach dataset-level ASVspoof 5 metadata to the unified results dict.
+
+    Model result entries intentionally store only scores/labels to keep the file
+    compact. This metadata records the evaluated utterance order once at dataset
+    level so error_analysis.ipynb can join protocol metadata by utt_id without
+    reconstructing tar member order or downloading ASVspoof 5 again.
+    """
+    results["__metadata__"] = {
+        "dataset": DATASET_KEY,
+        "split": ASV5_SPLIT,
+        "track": ASV5_TRACK,
+        "source": source,
+        "protocol_rows": int(protocol_rows),
+        "evaluated_rows": int(len(index_df)),
+        "utt_ids": index_df["utt_id"].astype(str).to_numpy(),
+        "label_convention": "1=bonafide,0=spoof",
+        "score_convention": "bonafide_probability",
+    }
 
 
 def predict_tar_batch(model, audio_items: list[tuple[str, bytes, int]], entry: dict):
@@ -2416,6 +2763,8 @@ run_eval_plan(
 save_results_pickle(results, OUTPUT_PKL)
 print("final summary")
 for name, result in results.items():
+    if str(name).startswith("__"):
+        continue
     print(f"{name:20s} EER={result['eer']:.4f}% N={len(result['scores']):,}")
 '''
 
@@ -2424,6 +2773,13 @@ RUN_ASV5_CODE = r'''
 preflight_check_model_inputs(ENABLED_MODELS, results=results, force_eval=FORCE_EVAL)
 
 if RESOLVED_ASV5_SOURCE == "local":
+    attach_asv5_results_metadata(
+        results=results,
+        index_df=eval_df[["utt_id", "label"]].copy(),
+        source="local",
+        protocol_rows=len(eval_df),
+    )
+    save_results_pickle(results, OUTPUT_PKL)
     run_eval_plan(
         enabled_models=ENABLED_MODELS,
         df=eval_df,
@@ -2438,21 +2794,47 @@ if RESOLVED_ASV5_SOURCE == "local":
     )
 elif RESOLVED_ASV5_SOURCE == "hf_tar":
     ASV5_HF_TAR_PROTOCOL = load_asv5_hf_tar_protocol(ASV5_SPLIT)
-    ASV5_HF_TAR_INDEX = build_asv5_hf_tar_index(ASV5_HF_TAR_PROTOCOL)
-    for model_name in ENABLED_MODELS:
-        evaluate_asv5_hf_tar_model(
-            model_name=model_name,
+    if RUN_ASV5_TAR_SHARD_BY_SHARD:
+        ASV5_HF_TAR_INDEX = run_asv5_hf_tar_shard_by_shard(
+            protocol=ASV5_HF_TAR_PROTOCOL,
             results=results,
             output_pkl=OUTPUT_PKL,
             output_dir=OUTPUT_DIR,
-            force_eval=FORCE_EVAL.get(model_name, False),
+            enabled_models=ENABLED_MODELS,
+            force_eval=FORCE_EVAL,
             partial_save_every=PARTIAL_SAVE_EVERY,
             partial_input_dirs=PARTIAL_INPUT_DIRS,
         )
+    else:
+        ASV5_HF_TAR_INDEX = build_asv5_hf_tar_index(ASV5_HF_TAR_PROTOCOL)
+        attach_asv5_results_metadata(
+            results=results,
+            index_df=ASV5_HF_TAR_INDEX,
+            source="hf_tar",
+            protocol_rows=len(ASV5_HF_TAR_PROTOCOL),
+        )
+        save_results_pickle(results, OUTPUT_PKL)
+        for model_name in ENABLED_MODELS:
+            evaluate_asv5_hf_tar_model(
+                model_name=model_name,
+                results=results,
+                output_pkl=OUTPUT_PKL,
+                output_dir=OUTPUT_DIR,
+                force_eval=FORCE_EVAL.get(model_name, False),
+                partial_save_every=PARTIAL_SAVE_EVERY,
+                partial_input_dirs=PARTIAL_INPUT_DIRS,
+            )
 elif RESOLVED_ASV5_SOURCE == "hf_webdataset":
     ASV5_HF_PROTOCOL = load_asv5_hf_protocol(ASV5_SPLIT)
     inspect_asv5_hf_stream(HF_DEBUG_N)
     ASV5_HF_INDEX = build_asv5_hf_index(ASV5_HF_PROTOCOL)
+    attach_asv5_results_metadata(
+        results=results,
+        index_df=ASV5_HF_INDEX,
+        source="hf_webdataset",
+        protocol_rows=len(ASV5_HF_PROTOCOL),
+    )
+    save_results_pickle(results, OUTPUT_PKL)
     for model_name in ENABLED_MODELS:
         evaluate_asv5_hf_webdataset_model(
             model_name=model_name,
@@ -2469,6 +2851,8 @@ else:
 save_results_pickle(results, OUTPUT_PKL)
 print("final summary")
 for name, result in results.items():
+    if str(name).startswith("__"):
+        continue
     print(f"{name:20s} EER={result['eer']:.4f}% N={len(result['scores']):,}")
 '''
 
@@ -2478,7 +2862,9 @@ import math
 import os
 import pickle
 import shutil
+import tarfile
 import zipfile
+from io import BytesIO
 from pathlib import Path
 
 import numpy as np
@@ -2491,6 +2877,18 @@ except ImportError:
     plt = None
     print("matplotlib is not installed; PNG plots will be skipped")
 
+try:
+    import soundfile as sf
+except ImportError:
+    sf = None
+    print("soundfile is not installed; ASVspoof 2021 loadability checks will use torchaudio if available")
+
+try:
+    import torchaudio
+except ImportError:
+    torchaudio = None
+    print("torchaudio is not installed; ASVspoof 2021 loadability checks will use soundfile only")
+
 
 BASE_INPUTS = [
     Path("/kaggle/input/datasets/minhbhm/sdd-survey"),
@@ -2498,12 +2896,21 @@ BASE_INPUTS = [
     Path("results"),
 ]
 OUTPUT_ROOT = Path("/kaggle/working/error_analysis") if Path("/kaggle/working").exists() else Path("notebook_exports/error_analysis")
+PATCHED_RESULTS_ROOT = Path("/kaggle/working/results_with_utt_ids") if Path("/kaggle/working").exists() else Path("notebook_exports/results_with_utt_ids")
 TOP_K_HARD_ERRORS = 25
 CREATE_ZIP = True
+BACKFILL_UTT_IDS = True
+# ASVspoof 5 results in this project were produced from the Hugging Face tar
+# stream. If the dev protocol order does not match the saved scores, this flag
+# lets the notebook download the required dev tar shards and recover their exact
+# member order. This is index reconstruction only: no model loading and no audio
+# decoding are performed.
+ALLOW_HF_DOWNLOAD = True
 RUN_SPECTROGRAMS = False
 RANDOM_SEED = 12345
 np.random.seed(RANDOM_SEED)
 DATASET_STATUS = {}
+RESULT_METADATA_KEY = "__metadata__"
 
 
 DATASETS = {
@@ -2512,11 +2919,13 @@ DATASETS = {
         "baseline": True,
         "metadata_fields": ["attack", "speaker"],
         "result_paths": [
+            PATCHED_RESULTS_ROOT / "asvspoof19" / "results.pkl",
             Path("/kaggle/input/datasets/minhbhm/sdd-survey/asvspoof19/results.pkl"),
             Path("/kaggle/input/sdd-survey/asvspoof19/results.pkl"),
             Path("results/asvspoof19/results.pkl"),
         ],
         "metadata_paths": [
+            Path("results/asvspoof19/ASVspoof2019.LA.cm.eval.trl.txt"),
             Path("/kaggle/input/datasets/minhbhm/sdd-survey/asvspoof19/ASVspoof2019.LA.cm.eval.trl.txt"),
             Path("/kaggle/input/sdd-survey/asvspoof19/ASVspoof2019.LA.cm.eval.trl.txt"),
             Path("/kaggle/input/datasets/awsaf49/asvpoof-2019-dataset/LA/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.eval.trl.txt"),
@@ -2527,41 +2936,60 @@ DATASETS = {
         "display": "ASVspoof 2021 DF",
         "metadata_fields": ["codec", "vocoder", "attack", "speaker"],
         "result_paths": [
+            PATCHED_RESULTS_ROOT / "asvspoof21" / "results.pkl",
             Path("/kaggle/input/datasets/minhbhm/sdd-survey/asvspoof21/results.pkl"),
             Path("/kaggle/input/sdd-survey/asvspoof21/results.pkl"),
             Path("results/asvspoof21/results.pkl"),
         ],
         "metadata_paths": [
+            Path("results/asvspoof21/trial_metadata.txt"),
             Path("/kaggle/input/datasets/minhbhm/sdd-survey/asvspoof21/trial_metadata.txt"),
             Path("/kaggle/input/sdd-survey/asvspoof21/trial_metadata.txt"),
             Path("/kaggle/input/datasets/mohammedabdeldayem/avsspoof-2021/DF-keys-full/keys/DF/CM/trial_metadata.txt"),
             Path("/kaggle/input/avsspoof-2021/DF-keys-full/keys/DF/CM/trial_metadata.txt"),
         ],
+        "audio_roots": [
+            Path("/kaggle/input/datasets/mohammedabdeldayem/avsspoof-2021"),
+            Path("/kaggle/input/avsspoof-2021"),
+            Path("/kaggle/input/asvspoof-2021"),
+        ],
     },
     "asvspoof5": {
         "display": "ASVspoof 5 Track 1",
+        "asv5_split": "eval",
         "metadata_fields": ["attack", "attack_tag", "codec", "condition", "speaker", "gender"],
         "result_paths": [
+            PATCHED_RESULTS_ROOT / "asvspoof5" / "results.pkl",
             Path("/kaggle/input/datasets/minhbhm/sdd-survey/asvspoof5/results.pkl"),
             Path("/kaggle/input/sdd-survey/asvspoof5/results.pkl"),
             Path("results/asvspoof5/results.pkl"),
         ],
         "metadata_paths": [
+            Path("results/asvspoof5/ASVspoof5.eval.track_1.tsv"),
             Path("/kaggle/input/datasets/minhbhm/sdd-survey/asvspoof5/ASVspoof5.eval.track_1.tsv"),
             Path("/kaggle/input/sdd-survey/asvspoof5/ASVspoof5.eval.track_1.tsv"),
+            Path("results/asvspoof5/ASVspoof5.dev.track_1.tsv"),
             Path("/kaggle/input/datasets/minhbhm/sdd-survey/asvspoof5/ASVspoof5.dev.track_1.tsv"),
             Path("/kaggle/input/sdd-survey/asvspoof5/ASVspoof5.dev.track_1.tsv"),
+        ],
+        "audio_roots": [
+            Path("/kaggle/input/datasets/minhbhm/sdd-survey/asvspoof5"),
+            Path("/kaggle/input/sdd-survey/asvspoof5"),
+            Path("/kaggle/input/asvspoof5"),
+            Path("/kaggle/input/asvspoof-5"),
         ],
     },
     "in_the_wild": {
         "display": "In-the-Wild",
         "metadata_fields": ["speaker", "duration_bucket"],
         "result_paths": [
+            PATCHED_RESULTS_ROOT / "in_the_wild" / "results.pkl",
             Path("/kaggle/input/datasets/minhbhm/sdd-survey/in_the_wild/results.pkl"),
             Path("/kaggle/input/sdd-survey/in_the_wild/results.pkl"),
             Path("results/in_the_wild/results.pkl"),
         ],
         "metadata_paths": [
+            Path("results/in_the_wild/meta.csv"),
             Path("/kaggle/input/datasets/minhbhm/sdd-survey/in_the_wild/meta.csv"),
             Path("/kaggle/input/sdd-survey/in_the_wild/meta.csv"),
             Path("/kaggle/input/datasets/abdallamohamed312/in-the-wild-audio-deepfake/meta.csv"),
@@ -2571,7 +2999,9 @@ DATASETS = {
 }
 
 OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
+PATCHED_RESULTS_ROOT.mkdir(parents=True, exist_ok=True)
 print(f"output root: {OUTPUT_ROOT}")
+print(f"patched results root: {PATCHED_RESULTS_ROOT}")
 '''
 
 
@@ -2593,6 +3023,63 @@ def first_existing(paths):
 def load_pickle_compat(path: Path):
     with open(path, "rb") as handle:
         return NumpyCompatUnpickler(handle).load()
+
+
+def is_model_result(name, result) -> bool:
+    """Return True for model entries and False for dataset metadata entries."""
+    if str(name).startswith("__"):
+        return False
+    return isinstance(result, dict) and "scores" in result and "labels" in result
+
+
+def save_pickle_compat(obj, path: Path) -> None:
+    """Write a pickle using the same protocol used by the evaluation notebooks."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "wb") as handle:
+        pickle.dump(obj, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+
+def get_result_utt_ids(results):
+    """Read dataset-level utterance IDs from a patched results.pkl, if present."""
+    metadata = results.get(RESULT_METADATA_KEY)
+    if isinstance(metadata, dict) and "utt_ids" in metadata:
+        return np.asarray(metadata["utt_ids"], dtype=str)
+    return None
+
+
+def result_metadata_matches_config(dataset_key, results, config) -> bool:
+    """Check whether dataset metadata is compatible with this analysis config.
+
+    ASVspoof 5 has both older dev-split artifacts and the new official eval-split
+    artifacts. When metadata exists for ASVspoof 5, it must explicitly declare
+    the configured split/track; otherwise the loader skips that path and tries
+    the next candidate instead of silently mixing dev IDs with eval metadata.
+    """
+    metadata = results.get(RESULT_METADATA_KEY)
+    if dataset_key != "asvspoof5" or not isinstance(metadata, dict):
+        return True
+    return metadata.get("split") == config.get("asv5_split") and metadata.get("track", "track_1") == "track_1"
+
+
+def labels_from_results(results):
+    """Return the first model label vector; metadata entries are ignored."""
+    for name, result in results.items():
+        if is_model_result(name, result):
+            return np.asarray(result["labels"], dtype=np.int64)
+    raise ValueError("No model labels found in results.pkl")
+
+
+def model_names_from_results(results, n_expected):
+    """Return model keys with score/label arrays matching the dataset length."""
+    names = []
+    for model, result in results.items():
+        if not is_model_result(model, result):
+            continue
+        if len(result["scores"]) != n_expected or len(result["labels"]) != n_expected:
+            print(f"warning: skipping {model}; length mismatch")
+            continue
+        names.append(model)
+    return names
 
 
 def compute_eer_threshold(scores, labels):
@@ -2654,27 +3141,6 @@ def expected_calibration_error(scores, labels, n_bins=10):
         ece += (n / len(scores)) * abs(mean_score - frac_bona)
         rows.append({"bin_left": lo, "bin_right": hi, "n": n, "mean_score": mean_score, "frac_bonafide": frac_bona})
     return float(ece), pd.DataFrame(rows)
-
-
-def labels_from_results(results):
-    for result in results.values():
-        if isinstance(result, dict) and "labels" in result:
-            return np.asarray(result["labels"], dtype=np.int64)
-    raise ValueError("No labels found in results.pkl")
-
-
-def model_names_from_results(results, n_expected):
-    names = []
-    for model, result in results.items():
-        if not isinstance(result, dict):
-            continue
-        if "scores" not in result or "labels" not in result:
-            continue
-        if len(result["scores"]) != n_expected or len(result["labels"]) != n_expected:
-            print(f"warning: skipping {model}; length mismatch")
-            continue
-        names.append(model)
-    return names
 
 
 def parse_asvspoof19_metadata(path: Path) -> pd.DataFrame:
@@ -2778,6 +3244,332 @@ def parse_in_the_wild_metadata(path: Path) -> pd.DataFrame:
     return df
 
 
+def build_asvspoof2021_audio_index(config) -> dict[str, Path]:
+    """Map ASVspoof 2021 DF eval utterance IDs to FLAC paths.
+
+    The original evaluation dataframe was built by filtering trial_metadata.txt
+    to utterances whose FLAC file existed in the three DF eval part folders.
+    Match that locator exactly: for each part, walk until the first directory
+    containing FLAC files, then use only the immediate filenames in that folder.
+    A broad recursive scan can pick up extra files that were never evaluated.
+    """
+    audio_index = {}
+    for root in config.get("audio_roots", []):
+        if not root.exists():
+            continue
+        for part in ("ASVspoof2021_DF_eval_part00", "ASVspoof2021_DF_eval_part01", "ASVspoof2021_DF_eval_part02"):
+            part_root = root / part
+            if not part_root.exists():
+                continue
+            audio_dir = None
+            for dirpath, _, files in os.walk(part_root):
+                if any(name.endswith(".flac") for name in files):
+                    audio_dir = Path(dirpath)
+                    break
+            if audio_dir is None:
+                continue
+            for name in os.listdir(audio_dir):
+                if name.endswith(".flac"):
+                    audio_index[name[:-5]] = audio_dir / name
+    return audio_index
+
+
+def list_asvspoof2021_audio_ids(config) -> set[str]:
+    """Return ASVspoof 2021 DF eval IDs found by the exact eval locator."""
+    return set(build_asvspoof2021_audio_index(config))
+
+
+def can_load_audio_header(audio_path: Path) -> bool:
+    """Return whether an audio file can be decoded by the notebook stack.
+
+    Evaluation datasets mark failed audio loads with `is_error=1` and skip those
+    rows when appending scores/labels/utt_ids. This helper mirrors that behavior
+    for backfill without running any model. `soundfile.info` is tried first
+    because it is lightweight for FLAC; `torchaudio.load` is the fallback and
+    matches the eval notebook's actual loader more closely.
+    """
+    try:
+        if sf is not None:
+            sf.info(str(audio_path))
+            return True
+        if torchaudio is not None:
+            torchaudio.load(str(audio_path))
+            return True
+    except Exception:
+        return False
+    return False
+
+
+def filter_asvspoof2021_loadable_audio(meta_df: pd.DataFrame, config) -> pd.DataFrame | None:
+    """Filter ASVspoof 2021 metadata to files that exist and load successfully.
+
+    The existing-FLAC filter can include a tiny number of corrupt/unreadable
+    files. During evaluation those rows were skipped by `WaveformDataset`, so
+    this loadability pass is the final CPU-only step needed to recover the exact
+    result order. No model inference is performed.
+    """
+    audio_index = build_asvspoof2021_audio_index(config)
+    if not audio_index:
+        return None
+    rows = []
+    failed = []
+    for row in meta_df.itertuples(index=False):
+        utt_id = str(getattr(row, "utt_id"))
+        audio_path = audio_index.get(utt_id)
+        if audio_path is None:
+            continue
+        if can_load_audio_header(audio_path):
+            rows.append(row._asdict())
+        else:
+            failed.append(utt_id)
+    if failed:
+        print(f"ASVspoof 2021 loadability backfill skipped {len(failed)} unreadable files: {failed[:10]}")
+    return pd.DataFrame(rows)
+
+
+def list_asvspoof5_audio_ids_from_files(config) -> set[str]:
+    """List ASVspoof 5 FLAC IDs from attached extracted audio folders.
+
+    This is a lightweight directory scan only. It is used when the protocol file
+    contains more rows than the evaluated audio subset.
+    """
+    audio_ids = set()
+    for root in config.get("audio_roots", []):
+        if not root.exists():
+            continue
+        for path in root.rglob("*.flac"):
+            audio_ids.add(path.stem)
+    return audio_ids
+
+
+def asvspoof5_tar_paths(config):
+    """Find ASVspoof 5 FLAC tar shards in local/Kaggle inputs or HF cache."""
+    split = config.get("asv5_split", "dev")
+    prefix = {"train": "T", "dev": "D", "eval": "E"}[split]
+    roots = list(config.get("audio_roots", [])) + [
+        Path("/kaggle/working/asvspoof5_hf_cache"),
+        Path("/root/.cache/huggingface"),
+    ]
+    paths = []
+    for root in roots:
+        if not root.exists():
+            continue
+        for pattern in (f"flac_{prefix}_*.tar", f"*flac_{prefix}*.tar"):
+            paths.extend(sorted(root.rglob(pattern)))
+    # Keep stable order and avoid duplicate paths found through overlapping roots.
+    out = []
+    seen = set()
+    for path in paths:
+        key = str(path.resolve())
+        if key not in seen:
+            out.append(path)
+            seen.add(key)
+    return out
+
+
+def download_asvspoof5_hf_tar_paths(config):
+    """Download ASVspoof 5 tar shards needed only for index reconstruction.
+
+    The evaluation notebook streamed these tar shards from `jungjee/asvspoof5`.
+    To recover the exact evaluated utterance order, we need tar member names in
+    shard order. We do not extract or decode audio; `tarfile` only reads member
+    headers. The download is optional because the dev shards can be several GB.
+    """
+    if not ALLOW_HF_DOWNLOAD:
+        return [], "ALLOW_HF_DOWNLOAD=False"
+    try:
+        from huggingface_hub import hf_hub_download, list_repo_files
+    except ImportError:
+        return [], "huggingface_hub is not installed"
+
+    split = config.get("asv5_split", "dev")
+    prefix = {"train": "T", "dev": "D", "eval": "E"}[split]
+    repo_id = "jungjee/asvspoof5"
+    cache_dir = Path("/kaggle/working/asvspoof5_hf_cache") if Path("/kaggle/working").exists() else Path("notebook_exports/asvspoof5_hf_cache")
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    shard_names = sorted(
+        name for name in list_repo_files(repo_id, repo_type="dataset")
+        if name.startswith(f"flac_{prefix}_") and name.endswith(".tar")
+    )
+    if not shard_names:
+        return [], f"no flac_{prefix}_*.tar shards found in {repo_id}"
+
+    local_paths = []
+    for shard_name in shard_names:
+        local_path = hf_hub_download(
+            repo_id=repo_id,
+            repo_type="dataset",
+            filename=shard_name,
+            cache_dir=str(cache_dir),
+        )
+        local_paths.append(Path(local_path))
+    return local_paths, f"downloaded/found {len(local_paths)} flac_{prefix}_*.tar shards from {repo_id}"
+
+
+def build_asvspoof5_tar_order_index(meta_df: pd.DataFrame, config) -> pd.DataFrame | None:
+    """Reconstruct ASVspoof 5 HF-tar evaluation order from tar member order.
+
+    The HF-tar evaluator streams tar shards and scores utterances in member
+    order. When results.pkl was produced that way, protocol order is not enough;
+    this function lists tar members and maps them back to protocol metadata.
+    """
+    tar_paths = asvspoof5_tar_paths(config)
+    status = f"found {len(tar_paths)} local tar shards"
+    if not tar_paths:
+        tar_paths, status = download_asvspoof5_hf_tar_paths(config)
+    print(f"ASVspoof 5 tar-order backfill: {status}")
+    if not tar_paths:
+        return None
+    meta_by_id = meta_df.drop_duplicates("utt_id").set_index("utt_id", drop=False)
+    rows = []
+    seen = set()
+    for tar_path in tar_paths:
+        with tarfile.open(tar_path, "r:*") as tar:
+            for member in tar:
+                if not member.isfile():
+                    continue
+                utt_id = Path(member.name).name
+                if utt_id.endswith(".flac"):
+                    utt_id = utt_id[:-5]
+                if utt_id in seen or utt_id not in meta_by_id.index:
+                    continue
+                rows.append(meta_by_id.loc[utt_id].to_dict())
+                seen.add(utt_id)
+    if not rows:
+        return None
+    return pd.DataFrame(rows).reset_index(drop=True)
+
+
+def validate_eval_index_candidate(name, candidate_df, labels):
+    """Validate that a reconstructed index exactly matches saved labels."""
+    if candidate_df is None or candidate_df.empty:
+        return None, f"{name}: empty candidate"
+    if len(candidate_df) != len(labels):
+        return None, f"{name}: length {len(candidate_df):,} != result length {len(labels):,}"
+    if "metadata_label" in candidate_df.columns:
+        candidate_labels = candidate_df["metadata_label"].to_numpy(dtype=np.int64)
+        mismatch = int(np.sum(candidate_labels != labels))
+        if mismatch:
+            return None, f"{name}: label mismatch in {mismatch:,}/{len(labels):,} rows"
+    return candidate_df.reset_index(drop=True), f"{name}: length and labels match"
+
+
+def build_eval_index_from_metadata(dataset_key, config, labels):
+    """Rebuild the evaluated utterance index used by results.pkl.
+
+    This function intentionally performs no inference and no audio decoding.
+    It only parses protocol rows and, where needed, lists audio filenames to
+    recover the exact subset/order that the eval notebooks scored.
+    """
+    meta_path = first_existing(config.get("metadata_paths", []))
+    if meta_path is None:
+        raise FileNotFoundError(f"{dataset_key}: protocol metadata file was not found")
+    meta_df = METADATA_PARSERS[dataset_key](meta_path)
+    labels = np.asarray(labels, dtype=np.int64)
+    attempts = []
+
+    direct, status = validate_eval_index_candidate("metadata_order", meta_df, labels)
+    attempts.append(status)
+    if direct is not None:
+        return direct, meta_path, attempts
+
+    head, status = validate_eval_index_candidate("metadata_head", meta_df.iloc[:len(labels)].copy(), labels)
+    attempts.append(status)
+    if head is not None:
+        return head, meta_path, attempts
+
+    if dataset_key == "asvspoof21":
+        audio_ids = list_asvspoof2021_audio_ids(config)
+        if audio_ids:
+            filtered = meta_df[meta_df["utt_id"].astype(str).isin(audio_ids)].copy()
+            candidate, status = validate_eval_index_candidate("metadata_filtered_by_existing_flac", filtered, labels)
+            attempts.append(status)
+            if candidate is not None:
+                return candidate, meta_path, attempts
+            # The eval dataset class skips rows whose audio file exists but
+            # cannot be decoded. If the existing-file candidate is only a few
+            # rows longer than results.pkl, this pass reproduces that skip path.
+            loadable = filter_asvspoof2021_loadable_audio(meta_df, config)
+            candidate, status = validate_eval_index_candidate("metadata_filtered_by_loadable_flac", loadable, labels)
+            attempts.append(status)
+            if candidate is not None:
+                return candidate, meta_path, attempts
+        else:
+            attempts.append("metadata_filtered_by_existing_flac: no ASVspoof 2021 FLAC folders attached")
+
+    if dataset_key == "asvspoof5":
+        # ASVspoof 5 eval results should now carry __metadata__.utt_ids from the
+        # evaluation notebook. This fallback is kept for older pickles: first try
+        # attached extracted FLAC files, then reproduce the HF tar member order.
+        audio_ids = list_asvspoof5_audio_ids_from_files(config)
+        if audio_ids:
+            filtered = meta_df[meta_df["utt_id"].astype(str).isin(audio_ids)].copy()
+            candidate, status = validate_eval_index_candidate("metadata_filtered_by_attached_flac", filtered, labels)
+            attempts.append(status)
+            if candidate is not None:
+                return candidate, meta_path, attempts
+        else:
+            attempts.append("metadata_filtered_by_attached_flac: no extracted ASVspoof 5 FLAC files attached")
+
+        tar_order = build_asvspoof5_tar_order_index(meta_df, config)
+        candidate, status = validate_eval_index_candidate("hf_tar_member_order", tar_order, labels)
+        attempts.append(status)
+        if candidate is not None:
+            return candidate, meta_path, attempts
+
+    detail = "; ".join(attempts)
+    raise RuntimeError(f"{dataset_key}: could not reconstruct evaluated utt_ids. Attempts: {detail}")
+
+
+def ensure_results_have_utt_ids(dataset_key, results, config, result_path):
+    """Patch results.pkl with dataset-level utt_ids when they are missing.
+
+    The patched file is written to /kaggle/working/results_with_utt_ids so the
+    original read-only Kaggle input remains untouched. Later runs can upload the
+    patched file back into the sdd-survey Kaggle dataset.
+    """
+    labels = labels_from_results(results)
+    existing = get_result_utt_ids(results)
+    if existing is not None:
+        if len(existing) != len(labels):
+            raise ValueError(f"{dataset_key}: stored utt_ids length {len(existing):,} != labels length {len(labels):,}")
+        return results, result_path, "utt_ids already present"
+
+    if not BACKFILL_UTT_IDS:
+        return results, result_path, "utt_ids missing; BACKFILL_UTT_IDS=False"
+
+    eval_index, meta_path, attempts = build_eval_index_from_metadata(dataset_key, config, labels)
+    patched = dict(results)
+    patched[RESULT_METADATA_KEY] = {
+        "dataset": dataset_key,
+        "utt_ids": eval_index["utt_id"].astype(str).to_numpy(),
+        "label_convention": "1=bonafide,0=spoof",
+        "score_convention": "bonafide_probability",
+        "source": "backfilled_from_eval_index",
+        "metadata_path": str(meta_path),
+        "backfill_attempts": attempts,
+    }
+    patched_path = PATCHED_RESULTS_ROOT / dataset_key / "results.pkl"
+    save_pickle_compat(patched, patched_path)
+
+    report_path = PATCHED_RESULTS_ROOT / "alignment_report.csv"
+    row = pd.DataFrame([{
+        "dataset": dataset_key,
+        "source_results": str(result_path),
+        "patched_results": str(patched_path),
+        "n": int(len(labels)),
+        "metadata_path": str(meta_path),
+        "status": "patched utt_ids",
+        "attempts": " | ".join(attempts),
+    }])
+    if report_path.exists():
+        previous = pd.read_csv(report_path)
+        previous = previous[previous["dataset"] != dataset_key]
+        row = pd.concat([previous, row], ignore_index=True)
+    row.to_csv(report_path, index=False)
+    return patched, patched_path, f"utt_ids backfilled -> {patched_path}"
+
+
 METADATA_PARSERS = {
     "asvspoof19": parse_asvspoof19_metadata,
     "asvspoof21": parse_asvspoof21_metadata,
@@ -2808,23 +3600,53 @@ def align_metadata(meta_df, labels):
     return aligned.drop(columns=["metadata_label"], errors="ignore"), "metadata aligned"
 
 
+def join_metadata_by_utt_id(base_df, meta_df):
+    """Attach metadata by utterance ID and validate labels for matched rows."""
+    if meta_df is None or meta_df.empty or "utt_id" not in meta_df.columns:
+        return base_df, "metadata missing or has no utt_id column"
+    meta = meta_df.drop_duplicates("utt_id").copy()
+    joined = base_df.merge(meta, on="utt_id", how="left", suffixes=("", "_meta"))
+    matched = int(joined[[c for c in meta.columns if c != "utt_id"]].notna().any(axis=1).sum())
+    status = f"metadata joined by utt_id ({matched:,}/{len(base_df):,} rows matched)"
+    if "metadata_label" in joined.columns:
+        matched_label = joined["metadata_label"].notna()
+        mismatch = int(np.sum(joined.loc[matched_label, "metadata_label"].to_numpy(dtype=np.int64) != joined.loc[matched_label, "label"].to_numpy(dtype=np.int64)))
+        if mismatch:
+            status += f"; warning: {mismatch:,} matched rows have label mismatch"
+        joined = joined.drop(columns=["metadata_label"], errors="ignore")
+    return joined, status
+
+
 def build_dataset_frame(dataset_key, results, config):
     labels = labels_from_results(results)
     n = len(labels)
-    df = pd.DataFrame({"row_id": np.arange(n), "utt_id": [f"{dataset_key}_{i:07d}" for i in range(n)], "label": labels})
+    utt_ids = get_result_utt_ids(results)
+    if utt_ids is None:
+        utt_ids = np.asarray([f"{dataset_key}_{i:07d}" for i in range(n)], dtype=str)
+        utt_id_status = "utt_ids missing; using synthetic row ids"
+    else:
+        utt_ids = np.asarray(utt_ids, dtype=str)
+        if len(utt_ids) != n:
+            raise ValueError(f"{dataset_key}: utt_ids length {len(utt_ids):,} != labels length {n:,}")
+        utt_id_status = "utt_ids present"
+    df = pd.DataFrame({"row_id": np.arange(n), "utt_id": utt_ids, "label": labels})
     meta_path = first_existing(config.get("metadata_paths", []))
     metadata_status = "metadata path not found"
     if meta_path is not None:
         try:
             meta_df = METADATA_PARSERS[dataset_key](meta_path)
-            aligned, metadata_status = align_metadata(meta_df, labels)
-            if aligned is not None:
-                base_cols = [c for c in aligned.columns if c != "label"]
-                df = pd.concat([df.drop(columns=["utt_id"]), aligned[base_cols].reset_index(drop=True)], axis=1)
-                if "utt_id" not in df.columns:
-                    df["utt_id"] = [f"{dataset_key}_{i:07d}" for i in range(n)]
+            if get_result_utt_ids(results) is not None:
+                df, metadata_status = join_metadata_by_utt_id(df, meta_df)
+            else:
+                aligned, metadata_status = align_metadata(meta_df, labels)
+                if aligned is not None:
+                    base_cols = [c for c in aligned.columns if c != "label"]
+                    df = pd.concat([df.drop(columns=["utt_id"]), aligned[base_cols].reset_index(drop=True)], axis=1)
+                    if "utt_id" not in df.columns:
+                        df["utt_id"] = utt_ids
         except Exception as exc:
             metadata_status = f"metadata parse failed: {exc}"
+    metadata_status = f"{utt_id_status}; {metadata_status}"
 
     models = model_names_from_results(results, n)
     for model in models:
@@ -2862,10 +3684,23 @@ def grouped_eer_for_dataset(df, models, fields, metrics):
         rows = []
         for group_value, group_df in df.groupby(field, dropna=False):
             labels = group_df["label"].to_numpy(dtype=np.int64)
-            if len(np.unique(labels)) < 2:
+            mode = "within_group"
+            eval_df = group_df
+            # Attack tags are often spoof-only. To make those groups usable for
+            # EER, compare that spoof subset against all bonafide utterances in
+            # the dataset. This is the standard "attack-specific EER" view used
+            # for ASVspoof-style error analysis.
+            if len(np.unique(labels)) < 2 and np.all(labels == 0):
+                bona_df = df[df["label"] == 1]
+                if bona_df.empty:
+                    continue
+                eval_df = pd.concat([bona_df, group_df], ignore_index=True)
+                labels = eval_df["label"].to_numpy(dtype=np.int64)
+                mode = "spoof_group_vs_all_bonafide"
+            elif len(np.unique(labels)) < 2:
                 continue
             for model in models:
-                scores = group_df[f"{model}_score"].to_numpy(dtype=np.float64)
+                scores = eval_df[f"{model}_score"].to_numpy(dtype=np.float64)
                 eer, _ = compute_eer_threshold(scores, labels)
                 threshold = metrics[model]["threshold"]
                 op = compute_operating_metrics(scores, labels, threshold)
@@ -2873,7 +3708,9 @@ def grouped_eer_for_dataset(df, models, fields, metrics):
                     "field": field,
                     "group": str(group_value),
                     "model": model,
-                    "n": int(len(group_df)),
+                    "mode": mode,
+                    "n": int(len(eval_df)),
+                    "n_group": int(len(group_df)),
                     "n_bonafide": int(np.sum(labels == 1)),
                     "n_spoof": int(np.sum(labels == 0)),
                     "eer": float(eer),
@@ -3058,19 +3895,41 @@ def export_dataset_artifacts(dataset_key, analysis, models, hard_errors_table):
 
 
 def analyze_dataset(dataset_key, config):
-    result_path = first_existing(config["result_paths"])
-    if result_path is None:
+    result_path = None
+    results = None
+    skipped_paths = []
+    for candidate in config["result_paths"]:
+        candidate = Path(candidate)
+        if not candidate.exists():
+            continue
+        candidate_results = load_pickle_compat(candidate)
+        if result_metadata_matches_config(dataset_key, candidate_results, config):
+            result_path = candidate
+            results = candidate_results
+            break
+        skipped_paths.append(str(candidate))
+    if result_path is None or results is None:
         print(f"{dataset_key}: results.pkl not found; skipping")
+        if skipped_paths:
+            print(f"{dataset_key}: skipped incompatible results files: {skipped_paths}")
         DATASET_STATUS[dataset_key] = {"status": "skipped; results.pkl not found"}
         return None
     print(f"\n## {config['display']}")
     print(f"loading results: {result_path}")
-    results = load_pickle_compat(result_path)
+    if skipped_paths:
+        print(f"skipped incompatible results files: {skipped_paths}")
+    try:
+        results, result_path, utt_id_status = ensure_results_have_utt_ids(dataset_key, results, config, result_path)
+        print(f"utt_id status: {utt_id_status}")
+    except Exception as exc:
+        print(f"utt_id backfill warning: {exc}")
+        utt_id_status = f"utt_id backfill failed: {exc}"
     df, models, metadata_status, meta_path = build_dataset_frame(dataset_key, results, config)
     print(f"models: {models}")
     print(f"metadata: {metadata_status}; path={meta_path}")
     DATASET_STATUS[dataset_key] = {
         "status": metadata_status,
+        "utt_id_status": utt_id_status,
         "result_path": str(result_path),
         "metadata_path": str(meta_path) if meta_path is not None else None,
         "n_rows": int(len(df)),
@@ -3180,7 +4039,9 @@ def build_synthesis(analyses):
         status = DATASET_STATUS.get(dataset_key, {})
         report_lines.append(
             f"- `{dataset_key}`: {status.get('n_rows', len(analysis['df'])):,} rows, "
-            f"{status.get('n_models', len(analysis['metrics']))} models, {status.get('status', 'metadata status unknown')}"
+            f"{status.get('n_models', len(analysis['metrics']))} models, "
+            f"{status.get('utt_id_status', 'utt_id status unknown')}; "
+            f"{status.get('status', 'metadata status unknown')}"
         )
 
     report_lines.extend(["", "## EER Summary", "", table_to_markdown(eer_table.round(4)), ""])
@@ -3204,9 +4065,12 @@ if CREATE_ZIP:
     if zip_path.exists():
         zip_path.unlink()
     with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-        for path in OUTPUT_ROOT.rglob("*"):
-            if path.is_file():
-                zf.write(path, path.relative_to(OUTPUT_ROOT.parent))
+        for root in (OUTPUT_ROOT, PATCHED_RESULTS_ROOT):
+            if not root.exists():
+                continue
+            for path in root.rglob("*"):
+                if path.is_file():
+                    zf.write(path, path.relative_to(OUTPUT_ROOT.parent))
     print(f"created {zip_path}")
 else:
     print("CREATE_ZIP=False; skipping zip export")
@@ -3261,7 +4125,7 @@ def build_in_the_wild() -> list[dict]:
 
 def build_asv5() -> list[dict]:
     return [
-        md("""# Evaluate ASVspoof 5 Track 1\n\nThis notebook evaluates ASVspoof 5 Track 1, the stand-alone countermeasure task. It saves a unified `/kaggle/working/asvspoof5/results.pkl` after each model and keeps per-model partial checkpoints so long runs can resume after interruption."""),
+        md("""# Evaluate ASVspoof 5 Eval Track 1\n\nThis notebook evaluates the official ASVspoof 5 eval split for Track 1, the stand-alone countermeasure task. It processes `flac_E_aa.tar` through `flac_E_aj.tar` one shard at a time to fit Kaggle working-disk limits, saves per-model partial checkpoints after each shard, records dataset-level evaluated `utt_ids`, and writes a unified `/kaggle/working/asvspoof5/results.pkl`."""),
         md("""## Dataset structure\n\nASVspoof 5 audio is 16 kHz FLAC. Track 1 metadata files are space-separated protocol files such as `ASVspoof5.train.tsv`, `ASVspoof5.dev.track_1.tsv`, and `ASVspoof5.eval.track_1.tsv`. Rows contain `SPEAKER_ID FLAC_FILE_NAME SPEAKER_GENDER CODEC CODEC_Q CODEC_SEED ATTACK_TAG ATTACK_LABEL KEY TMP`; `KEY` is the CM label (`bonafide` or `spoof`). The corresponding audio prefixes are `flac_T` for train, `flac_D` for dev, and `flac_E` for eval. Track 2 enrollment/trial files are SASV protocols and are intentionally not used here."""),
         code(COMMON_SETUP),
         code(ASV5_DATASET_CODE),
@@ -3275,10 +4139,10 @@ def build_asv5() -> list[dict]:
 def build_error_analysis() -> list[dict]:
     return [
         md("""# Error Analysis\n\nThis notebook performs CPU-only error analysis from saved `results.pkl` files and lightweight protocol metadata. It is intentionally separate from the evaluation notebooks so it can be rerun quickly after new model results are added."""),
-        md("""## Output contract\n\nArtifacts are written under `/kaggle/working/error_analysis/` on Kaggle, or `notebook_exports/error_analysis/` locally. Each dataset exports `error_analysis.pkl`, CSV tables, plots, and the final cell optionally creates `error_analysis_artifacts.zip` for upload back into the `sdd-survey` Kaggle dataset."""),
+        md("""## Output contract\n\nArtifacts are written under `/kaggle/working/error_analysis/` on Kaggle, or `notebook_exports/error_analysis/` locally. If a `results.pkl` lacks evaluated utterance IDs, the notebook reconstructs the eval index without inference and writes patched pickles under `/kaggle/working/results_with_utt_ids/<dataset>/results.pkl`. ASVspoof 2021 additionally checks audio loadability to mirror the eval loader's skip-on-decode-error behavior. ASVspoof 5 now prioritizes the official eval Track 1 protocol and expects eval results to include dataset-level `__metadata__.utt_ids`; older pickles can still fall back to HF tar member order reconstruction. Each dataset also exports `error_analysis.pkl`, CSV tables, plots, and the final cell optionally creates `error_analysis_artifacts.zip` containing both `error_analysis/` and `results_with_utt_ids/` for upload back into the `sdd-survey` Kaggle dataset."""),
         code(ERROR_ANALYSIS_SETUP_CODE),
         code(ERROR_ANALYSIS_HELPERS_CODE),
-        md("""## Run per-dataset analysis\n\nThe loop below analyzes every dataset with an available `results.pkl`. Missing models are skipped automatically. Metadata-dependent breakdowns are generated only when the protocol file aligns with the score arrays."""),
+        md("""## Run per-dataset analysis\n\nThe loop below analyzes every dataset with an available `results.pkl`. Missing models are skipped automatically. Metadata-dependent breakdowns join by `utt_id` when available; if `utt_id` is missing, the notebook first tries to backfill it from the same protocol/audio-index logic used by evaluation."""),
         code(ERROR_ANALYSIS_RUN_CODE),
         md("""## Cross-dataset synthesis\n\nThis cell writes cross-dataset EER tables, generalization gaps against ASVspoof 2019 when available, robustness summaries, and a deterministic `report.md`."""),
         code(ERROR_ANALYSIS_SYNTHESIS_CODE),
@@ -3299,12 +4163,18 @@ Each notebook writes a unified `results.pkl`:
 
 ```python
 {
+    "__metadata__": {  # optional, added by error_analysis backfill
+        "dataset": str,
+        "utt_ids": np.ndarray,
+        "label_convention": "1=bonafide,0=spoof",
+    },
     "AASIST": {"eer": float, "scores": np.ndarray, "labels": np.ndarray},
     ...
 }
 ```
 
 `labels` use `1=bonafide` and `0=spoof`. `scores` are always bonafide probabilities, so EER uses bonafide as the positive class.
+The optional `__metadata__` entry is dataset-level metadata; evaluation and analysis code skip it when iterating model results.
 
 ## Resume behavior
 
@@ -3346,7 +4216,8 @@ Important ASVspoof 5 structure:
 - Audio prefixes are `flac_T` for train, `flac_D` for dev, and `flac_E` for eval.
 - The Hugging Face mirror `jungjee/asvspoof5` is a WebDataset-style package with protocol files and large FLAC tar shards. `eval_asvspoof_5.ipynb` defaults to `ASV5_SOURCE='auto'`: it uses local extracted files if present, otherwise falls back to Hugging Face streaming. Kaggle Internet must be enabled for this fallback.
 - In HF mode, the notebook now prints `inspect_asv5_hf_stream()` output and builds `ASV5_HF_INDEX` before loading any model. If matched audio rows are zero, it stops early with the printed keys/fields instead of running inference and failing at EER computation.
-- Because Hugging Face `datasets` does not expose ASVspoof 5 extensionless FLAC payloads reliably, the current default is `ASV5_SOURCE='hf_tar'`. It downloads `ASVspoof5_protocols.tar` and the needed `flac_D_*.tar` or `flac_E_*.tar` shards with `huggingface_hub`, then streams FLAC bytes directly with Python `tarfile`.
+- Because Hugging Face `datasets` does not expose ASVspoof 5 extensionless FLAC payloads reliably, the current default is `ASV5_SOURCE='hf_tar'`. It downloads `ASVspoof5_protocols.tar` and then processes the official eval shards one at a time (`flac_E_aa.tar` through `flac_E_aj.tar`): download one shard, run all enabled models on that shard, save partials, delete the shard, then continue to the next suffix.
+- The generated ASVspoof 5 notebook now targets the official eval split (`ASVspoof5.eval.track_1.tsv`) by default. Older dev-split `results.pkl` files are ignored unless they explicitly declare matching dataset metadata. In HF-tar mode, the notebook also writes a copy of `ASVspoof5.eval.track_1.tsv` next to `/kaggle/working/asvspoof5/results.pkl` for upload back into the `sdd-survey` dataset.
 
 ## In-the-Wild
 
@@ -3365,7 +4236,7 @@ The locator searches for `meta.csv` (columns `file`, `speaker`, `label`) and a f
 
 Notebook: `error_analysis.ipynb`
 
-This notebook consumes saved `results.pkl` files and lightweight protocol metadata only. It writes deterministic artifacts under `/kaggle/working/error_analysis/`, including per-dataset `error_analysis.pkl`, metrics CSVs, grouped EER CSVs, score-distribution plots, failure-overlap tables, hard-error tables, a cross-dataset synthesis folder, and `error_analysis_artifacts.zip` for upload back to the `sdd-survey` Kaggle dataset.
+This notebook consumes saved `results.pkl` files and lightweight protocol metadata only. When a pickle lacks evaluated `utt_ids`, it reconstructs the eval index without inference, writes patched pickles under `/kaggle/working/results_with_utt_ids/<dataset>/results.pkl`, and uses `utt_id` joins for metadata alignment. ASVspoof 2021 backfill mirrors the eval notebook's narrow audio-directory scan and checks audio loadability to reproduce the eval loader's skip-on-decode-error behavior. ASVspoof 5 now prioritizes the official eval Track 1 protocol; the eval notebook writes dataset-level `__metadata__.utt_ids`, so normal error analysis no longer needs to download ASVspoof 5 tar shards. It writes deterministic artifacts under `/kaggle/working/error_analysis/`, including per-dataset `error_analysis.pkl`, metrics CSVs, grouped EER CSVs, score-distribution plots, failure-overlap tables, hard-error tables, a cross-dataset synthesis folder, and `error_analysis_artifacts.zip` containing both `error_analysis/` and `results_with_utt_ids/` for upload back to the `sdd-survey` Kaggle dataset.
 
 ## Model score convention
 

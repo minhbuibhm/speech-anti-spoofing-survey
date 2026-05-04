@@ -8,12 +8,18 @@ Each notebook writes a unified `results.pkl`:
 
 ```python
 {
+    "__metadata__": {  # optional, added by error_analysis backfill
+        "dataset": str,
+        "utt_ids": np.ndarray,
+        "label_convention": "1=bonafide,0=spoof",
+    },
     "AASIST": {"eer": float, "scores": np.ndarray, "labels": np.ndarray},
     ...
 }
 ```
 
 `labels` use `1=bonafide` and `0=spoof`. `scores` are always bonafide probabilities, so EER uses bonafide as the positive class.
+The optional `__metadata__` entry is dataset-level metadata; evaluation and analysis code skip it when iterating model results.
 
 ## Resume behavior
 
@@ -55,7 +61,8 @@ Important ASVspoof 5 structure:
 - Audio prefixes are `flac_T` for train, `flac_D` for dev, and `flac_E` for eval.
 - The Hugging Face mirror `jungjee/asvspoof5` is a WebDataset-style package with protocol files and large FLAC tar shards. `eval_asvspoof_5.ipynb` defaults to `ASV5_SOURCE='auto'`: it uses local extracted files if present, otherwise falls back to Hugging Face streaming. Kaggle Internet must be enabled for this fallback.
 - In HF mode, the notebook now prints `inspect_asv5_hf_stream()` output and builds `ASV5_HF_INDEX` before loading any model. If matched audio rows are zero, it stops early with the printed keys/fields instead of running inference and failing at EER computation.
-- Because Hugging Face `datasets` does not expose ASVspoof 5 extensionless FLAC payloads reliably, the current default is `ASV5_SOURCE='hf_tar'`. It downloads `ASVspoof5_protocols.tar` and the needed `flac_D_*.tar` or `flac_E_*.tar` shards with `huggingface_hub`, then streams FLAC bytes directly with Python `tarfile`.
+- Because Hugging Face `datasets` does not expose ASVspoof 5 extensionless FLAC payloads reliably, the current default is `ASV5_SOURCE='hf_tar'`. It downloads `ASVspoof5_protocols.tar` and then processes the official eval shards one at a time (`flac_E_aa.tar` through `flac_E_aj.tar`): download one shard, run all enabled models on that shard, save partials, delete the shard, then continue to the next suffix.
+- The generated ASVspoof 5 notebook now targets the official eval split (`ASVspoof5.eval.track_1.tsv`) by default. Older dev-split `results.pkl` files are ignored unless they explicitly declare matching dataset metadata. In HF-tar mode, the notebook also writes a copy of `ASVspoof5.eval.track_1.tsv` next to `/kaggle/working/asvspoof5/results.pkl` for upload back into the `sdd-survey` dataset.
 
 ## In-the-Wild
 
@@ -74,7 +81,7 @@ The locator searches for `meta.csv` (columns `file`, `speaker`, `label`) and a f
 
 Notebook: `error_analysis.ipynb`
 
-This notebook consumes saved `results.pkl` files and lightweight protocol metadata only. It writes deterministic artifacts under `/kaggle/working/error_analysis/`, including per-dataset `error_analysis.pkl`, metrics CSVs, grouped EER CSVs, score-distribution plots, failure-overlap tables, hard-error tables, a cross-dataset synthesis folder, and `error_analysis_artifacts.zip` for upload back to the `sdd-survey` Kaggle dataset.
+This notebook consumes saved `results.pkl` files and lightweight protocol metadata only. When a pickle lacks evaluated `utt_ids`, it reconstructs the eval index without inference, writes patched pickles under `/kaggle/working/results_with_utt_ids/<dataset>/results.pkl`, and uses `utt_id` joins for metadata alignment. ASVspoof 2021 backfill mirrors the eval notebook's narrow audio-directory scan and checks audio loadability to reproduce the eval loader's skip-on-decode-error behavior. ASVspoof 5 now prioritizes the official eval Track 1 protocol; the eval notebook writes dataset-level `__metadata__.utt_ids`, so normal error analysis no longer needs to download ASVspoof 5 tar shards. It writes deterministic artifacts under `/kaggle/working/error_analysis/`, including per-dataset `error_analysis.pkl`, metrics CSVs, grouped EER CSVs, score-distribution plots, failure-overlap tables, hard-error tables, a cross-dataset synthesis folder, and `error_analysis_artifacts.zip` containing both `error_analysis/` and `results_with_utt_ids/` for upload back to the `sdd-survey` Kaggle dataset.
 
 ## Model score convention
 
