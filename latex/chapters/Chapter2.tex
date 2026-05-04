@@ -1,0 +1,171 @@
+﻿\chapter{Cơ sở lý thuyết} \label{chap:background}
+
+\section{Bài toán và các loại tấn công}
+
+Speech Deepfake Detection (SDD) là bài toán xây dựng một hệ thống countermeasure (CM) để phân biệt audio thật (\textit{bonafide}) và audio giả mạo (\textit{spoof}). Ở mức utterance-level, với một đoạn tín hiệu âm thanh đầu vào $x$, mô hình sinh ra một điểm số:
+\begin{equation}
+    s = f(x) \in \mathbb{R},
+\end{equation}
+thể hiện mức độ tin cậy rằng $x$ là \textit{bonafide}. Quyết định cuối cùng được đưa ra bằng cách so sánh score với một ngưỡng $\tau$: nếu $s \geq \tau$ thì phân loại là \textit{bonafide}, ngược lại là \textit{spoof}. Trong toàn bộ báo cáo này, nhãn được quy ước là \textit{bonafide} = 1 và \textit{spoof} = 0 để thống nhất với cách tính EER ở Chương \ref{chap:experiment}.
+
+Trong bối cảnh Automatic Speaker Verification (ASV), CM thường được đặt trước hoặc song song với hệ thống xác thực người nói. ASV trả lời câu hỏi ``người nói có đúng là danh tính đã khai báo không?'', còn CM trả lời câu hỏi ``tín hiệu đầu vào có phải là giọng thật không?''. Hai bài toán liên quan nhưng không đồng nhất: một audio giả có thể bắt chước đúng speaker target và qua được ASV, nhưng vẫn cần bị CM phát hiện là \textit{spoof}. Vì vậy các challenge ASVspoof đánh giá CM như một thành phần bảo vệ ASV trước các tấn công tổng hợp, chuyển đổi giọng hoặc replay \cite{asvspoof2019,asvspoof2021}.
+
+Một hệ thống CM điển hình gồm ba bước. \textbf{Front-end} chuyển waveform thành representation: có thể là hand-crafted spectral features như LFCC/CQCC, feature học trực tiếp từ raw waveform, hoặc representation từ self-supervised learning (SSL) model như Wav2Vec2, XLS-R, WavLM. \textbf{Back-end} nhận representation này để mô hình hoá quan hệ thời gian, phổ hoặc speaker/utterance-level cue. \textbf{Classifier/scoring head} sinh score cuối cùng cho từng utterance. Cách tách front-end và back-end này giúp so sánh các nhóm kiến trúc ở Phần \ref{sec:architectures}: khác biệt chính giữa LFCC+LCNN, AASIST và XLS-R+Nes2Net không chỉ nằm ở classifier, mà nằm ở loại representation mà mô hình được phép khai thác.
+
+Về threat model, các tấn công trong SDD thường được chia thành bốn nhóm chính:
+\begin{itemize}
+    \item \textbf{Logical Access (LA).} Attacker tiêm audio giả trực tiếp vào pipeline số, không cần phát lại qua loa hoặc microphone. Hai dạng phổ biến là TTS và VC. TTS sinh giọng nói từ văn bản; VC giữ nội dung hoặc đặc tính ngữ âm của nguồn nhưng biến đổi speaker identity sang giọng đích. LA là kịch bản chính của ASVspoof 2019 LA, ASVspoof 2021 DF và ASVspoof 5 Track 1.
+    \item \textbf{Physical Access (PA) / replay.} Attacker phát lại audio qua thiết bị vật lý rồi thu hoặc đưa vào hệ thống qua microphone. Khác với LA, replay chứa thêm dấu vết của loa, phòng, microphone và khoảng cách thu. Do đó một detector huấn luyện cho LA không nhất thiết generalize sang PA, và ngược lại.
+    \item \textbf{Deepfake/in-the-wild setting.} Audio được thu thập từ social media, video streaming hoặc nguồn công khai, thường đã qua codec, noise, trimming, post-processing và có metadata không đầy đủ. Đây không phải một attack mechanism đơn lẻ, mà là một deployment-like condition dùng để kiểm tra cross-domain generalization.
+    \item \textbf{Adversarial và neural codec attacks.} Adversarial attacks thêm perturbation có chủ đích để làm sai lệch detector. Neural codec attacks liên quan đến các TTS/VC pipeline hiện đại sử dụng codec representation như EnCodec/SNAC/Vocos, khiến artifact không còn giống các spectral artifact truyền thống trong benchmark cũ. ASVspoof 5 đưa các yếu tố này vào benchmark ở quy mô lớn hơn các phiên bản trước \cite{asvspoof5_arxiv2024}.
+\end{itemize}
+
+Báo cáo này tập trung thực nghiệm vào nhóm LA và deepfake/in-the-wild vì bốn dataset reproduce ở Chương \ref{chap:experiment} chủ yếu thuộc hai nhóm này. PA/replay và adversarial robustness được trình bày ở mức cơ sở lý thuyết để làm rõ bức tranh nghiên cứu, nhưng chưa phải trọng tâm thực nghiệm của Thực tập 1.
+
+\section{Các tập dữ liệu benchmark}
+
+Dataset trong SDD không chỉ khác nhau về số lượng sample, mà còn khác nhau về giả định đánh giá. Có thể phân loại theo bốn trục chính: attack scenario, recording/deployment condition, attack generation family và language coverage. Bốn dataset được reproduce trong báo cáo không nhằm bao trùm toàn bộ landscape, mà đại diện cho bốn stress test chính trong scope Thực tập 1: clean benchmark, codec robustness, modern ASVspoof attacks và in-the-wild domain shift.
+
+Bảng \ref{tab:sdd-datasets} tổng hợp các dataset chính. Cột ``Kích thước'' ưu tiên ghi split hoặc subset được dùng trong báo cáo nếu dataset được reproduce; với dataset chỉ tham chiếu, giá trị được ghi theo paper gốc ở mức tổng quan. Các dataset không reproduce được giữ trong bảng khi chúng đại diện cho một threat model quan trọng nhưng lệch scope hoặc chưa cần thiết cho pipeline thí nghiệm hiện tại.
+
+\begin{table}[H]
+    \centering
+    \footnotesize
+    \begin{adjustbox}{width=\textwidth}
+    \begin{tabular}{p{2.4cm}|p{1.5cm}|p{2.2cm}|p{1.5cm}|p{3.4cm}|p{3.8cm}|p{4.2cm}}
+        \textbf{Dataset} & \textbf{Năm} & \textbf{Kịch bản} & \textbf{Ngôn ngữ} & \textbf{Kích thước dùng/tham chiếu} & \textbf{Đặc điểm chính} & \textbf{Vai trò trong báo cáo}
+        \\ \hline
+        ASVspoof 2019 LA & 2019 & LA, TTS/VC & Anh & 71,237 utterances trong eval split dùng ở project & Clean lab, 19 attacks, metadata attack rõ & Reproduce: benchmark baseline trong điều kiện sạch
+        \\ \hline
+        ASVspoof 2021 DF & 2021 & Deepfake/LA + codec & Anh & 458,868 utterances trong eval subset dùng ở project & Audio kế thừa ASV2019, re-encode qua nhiều codec/bitrate & Reproduce: stress test cho codec robustness
+        \\ \hline
+        ASVspoof 5 Track 1 & 2024/2025 & LA/deepfake + adversarial context & Đa ngôn ngữ & 140,950 utterances trong dev split dùng ở project & Crowdsourced speech, 32 attack algorithms, surrogate/adversarial setting & Reproduce: trọng tâm preliminary error analysis; cần bổ sung full eval ở bước sau \cite{asvspoof5_design,asvspoof5_eval}
+        \\ \hline
+        In-the-Wild & 2022 & In-the-wild deepfake & Chủ yếu Anh & 31,779 utterances, 58 speakers trong bản dùng ở project & Scraped từ nguồn công khai, 20.8h bonafide và 17.2h spoofed audio & Reproduce: probe cho cross-domain generalization \cite{in_the_wild}
+        \\ \hline
+        MLAAD v9 & 2024/2026 & Multi-lingual TTS & 51 ngôn ngữ & 678.3h synthetic voice theo arXiv v9 & 140 TTS models, 78 architectures & Không reproduce: phù hợp cross-lingual extension, nhưng chưa phải câu hỏi chính của Thực tập 1 \cite{mlaad}
+        \\ \hline
+        CodecFake / CodecFake+ & 2024/2025 & Codec-based speech generation & Nhiều nguồn & CodecFake+ dùng 31 codec models cho train và 17 CoSG models cho eval & Nhắm trực tiếp vào neural codec / CoSG attacks & Không reproduce: phù hợp để follow-up neural codec robustness, nhưng ASVspoof 5 đang là benchmark hiện đại chính \cite{codecfake,codecfakeplus}
+        \\ \hline
+        EchoFake & 2025 & Zero-shot TTS + physical replay & Anh & Hơn 120h audio, hơn 13K speakers & Replay-aware practical SDD với device/environment đa dạng & Không reproduce: quan trọng cho deployment/replay, nhưng lệch LA/DF scope hiện tại \cite{echofake}
+        \\ \hline
+        ADD 2022/2023 & 2022/2023 & Low-quality, partial fake, fake game, localization & Chủ yếu Mandarin & Nhiều track challenge & Mở rộng ngoài binary utterance-level detection & Không reproduce: task/protocol khác với pipeline EER utterance-level \cite{add2022,add2023}
+        \\ \hline
+        PartialSpoof & 2021/2022 & Partially spoofed utterances & Anh & Dựa trên ASVspoof 2019 LA & Có utterance-level và segment-level labels & Không reproduce: cần localization/segment-level setup, không khớp thí nghiệm hiện tại \cite{partialspoof}
+        \\ \hline
+        WaveFake & 2021 & TTS/vocoder & Anh + Nhật & Khoảng 104K utterances theo paper & Tập trung GAN/neural vocoder artifacts & Tham chiếu lịch sử cho vocoder artifacts; không đủ hiện đại làm main benchmark
+        \\ \hline
+        FoR & 2019 & TTS & Anh & Khoảng 198K utterances theo paper & Dataset real/fake speech đời đầu, nhiều TTS cũ & Tham chiếu lịch sử, không dùng làm benchmark chính
+    \end{tabular}
+    \end{adjustbox}
+    \caption{Tổng hợp một số dataset SDD tiêu biểu.}
+    \label{tab:sdd-datasets}
+\end{table}
+
+\textbf{ASVspoof 2019 LA} là điểm xuất phát hợp lý vì điều kiện sạch, protocol rõ và được dùng rộng rãi trong cộng đồng ASV anti-spoofing \cite{asvspoof2019}. Điểm mạnh của nó là metadata attack type đầy đủ, cho phép phân tích từng nhóm TTS/VC. Hạn chế là nhiều attack phản ánh công nghệ synthesis trước 2019 và không có codec/post-processing phức tạp. Vì vậy EER thấp trên ASVspoof 2019 LA không đủ để kết luận mô hình sẽ hoạt động tốt ngoài môi trường benchmark.
+
+\textbf{ASVspoof 2021 DF} được thiết kế để đưa yếu tố codec và transmission condition vào đánh giá \cite{asvspoof2021}. Về bản chất, dataset này dùng lại nguồn tấn công từ ASVspoof 2019 nhưng xử lý qua nhiều codec/bitrate. Thiết kế này hữu ích vì cô lập được một câu hỏi cụ thể: khi spectral artifacts bị nén hoặc làm mờ, detector còn phân biệt được \textit{bonafide}/\textit{spoof} không? Đây là lý do ASVspoof 2021 DF được dùng trong báo cáo như một stress test cho codec robustness.
+
+\textbf{ASVspoof 5} mở rộng benchmark sang crowdsourced speech, nhiều speaker/recording condition hơn, 32 attack algorithms và adversarial attacks được đưa vào lần đầu trong chuỗi ASVspoof \cite{asvspoof5_arxiv2024,asvspoof5_design}. Paper đánh giá challenge năm 2026 cho thấy nhiều hệ thống vẫn suy giảm dưới adversarial attacks và neural encoding/compression, nên ASVspoof 5 là nguồn evidence quan trọng cho modern attack robustness \cite{asvspoof5_eval}. Trong phạm vi Thực tập 1, báo cáo dùng Track 1 dev split vì split này có metadata phù hợp cho phân tích lỗi sơ bộ. Việc chưa hoàn thành full eval split được ghi rõ ở Phần \ref{sec:error-analysis}; do đó các kết luận từ ASVspoof 5 trong báo cáo cần được hiểu là preliminary diagnosis, không phải đánh giá cuối cùng.
+
+\textbf{In-the-Wild} khác với chuỗi ASVspoof ở chỗ nó không cố kiểm soát attack generator. Dataset được thu thập từ nguồn công khai cho 58 public figures, gồm 20.8 giờ \textit{bonafide} và 17.2 giờ spoofed audio \cite{in_the_wild}. Điểm mạnh của nó là phản ánh real-world condition: codec không đồng nhất, chất lượng nguồn khác nhau, speaker distribution khác training data và metadata attack không đầy đủ. Điểm yếu cũng nằm ở chính điều này: khó phân tích lỗi theo attack type và có khả năng tồn tại label noise. Trong báo cáo, In-the-Wild được dùng như probe cho domain shift, không dùng để rút ra kết luận chi tiết về từng attack mechanism.
+
+Các dataset ngoài nhóm reproduce giúp làm rõ phần landscape còn lại. MLAAD v9 đáng chú ý cho cross-lingual evaluation vì mở rộng lên 51 ngôn ngữ và 140 TTS models \cite{mlaad}. CodecFake/CodecFake+ nhắm trực tiếp vào codec-based speech generation, một hướng tấn công mới mà nhiều detector train trên vocoder-era datasets có thể bỏ sót \cite{codecfake,codecfakeplus}. EchoFake đưa yếu tố physical replay vào speech deepfake thực tế \cite{echofake}. ADD và PartialSpoof mở rộng bài toán sang low-quality, partial và localized manipulation \cite{add2022,add2023,partialspoof}. Những dataset này chưa được đưa vào reproduce vì lệch task, đòi hỏi protocol/metric khác hoặc vượt tài nguyên của Thực tập 1; tuy nhiên chúng nên được giữ trong literature review và future work để tránh hiểu nhầm rằng bốn dataset reproduce là đầy đủ cho mọi kịch bản SDD.
+
+\section{Các nhóm kiến trúc} \label{sec:architectures}
+
+Các kiến trúc SDD có thể được nhìn theo câu hỏi: mô hình lấy thông tin gì từ audio, representation đó đến từ đâu và hệ thống có cơ chế nào để giữ ổn định khi attack/domain thay đổi hay không. Ở tầng cao, có thể gom thành bốn nhóm lớn thay vì liệt kê ngay từng model.
+
+\textbf{Signal/task-specific supervised detectors.} Nhóm này dùng representation được thiết kế hoặc chuẩn hoá theo signal processing, rồi huấn luyện classifier/back-end supervised trên dữ liệu anti-spoofing. Nhánh cổ điển gồm LFCC, CQCC, MFCC hoặc IMFCC với GMM/SVM/LCNN. Nhánh học sâu hơn dùng spectrogram, CQT hoặc LFCC làm input cho LCNN, ResNet, TDNN, Transformer/Conformer. Ưu điểm là nhẹ, dễ triển khai và có baseline lâu đời trong ASVspoof. Điểm yếu là representation thường nhạy với artifact của training dataset: khi audio bị codec, replay channel hoặc neural codec generation làm thay đổi spectral/phase cues, khả năng generalize có thể giảm. LFCC+LCNN trong báo cáo đại diện cho nhóm này.
+
+\textbf{Raw waveform / end-to-end detectors.} RawNet2 và AASIST bỏ qua feature engineering thủ công, học trực tiếp từ waveform \cite{rawnet2,aasist}. RawNet2 dùng SincConv/residual blocks để học filter và temporal pattern. AASIST bổ sung heterogeneous graph attention để mô hình hoá quan hệ giữa spectral branch và temporal branch; ý tưởng chính là artifact của spoofed speech có thể xuất hiện trong quan hệ spectro-temporal dài hơn, không chỉ ở một frame hoặc một vùng tần số riêng lẻ. AASIST/AASIST-L là mốc quan trọng vì đạt kết quả tốt trên ASVspoof 2019 LA với số tham số nhỏ \cite{aasist}. Tuy nhiên, vì không có large-scale speech pre-training, nhóm này vẫn có nguy cơ học artifact gắn với training distribution.
+
+\textbf{SSL/foundation front-end + anti-spoofing back-end.} Nhóm này dùng Wav2Vec2, XLS-R, WavLM, HuBERT hoặc speech encoder lớn làm front-end, sau đó gắn back-end như AASIST, MFA, Nes2Net, pooling/MLP hoặc layer-selection module \cite{wav2vec2,xlsr,wavlm}. Lợi thế kỳ vọng là SSL representation chứa prior về phonetic structure, speaker/channel variation và acoustic regularity từ pre-training quy mô lớn, nên có nền tảng ổn định hơn khi attack hoặc codec thay đổi. Các paper tiêu biểu gồm Wav2Vec2/XLS-R + AASIST của Tak và cộng sự \cite{ssl_aasist}, WavLM + Multi-Fusion Attentive classifier của Guo và cộng sự \cite{wavlm_mfa}, AASIST3 \cite{aasist3}, WavLM back-ends/fusion trong ASVspoof 5 \cite{wavlm_backend,wavlm_ensemble} và Nes2Net \cite{nes2net}. Hạn chế chính là chi phí: riêng XLS-R 300M hoặc WavLM Large đã lớn hơn nhiều so với AASIST/LFCC+LCNN, và hiệu năng phụ thuộc checkpoint, layer selection, fine-tuning, augmentation và calibration.
+
+\textbf{System-level robustness strategies.} Các hệ thống mạnh gần đây thường không chỉ thay backbone mà còn dùng codec/noise/reverb augmentation, CodecFake-aware training, score calibration và score-level/feature-level fusion. ASVspoof 5 evaluation 2026 cho thấy nhiều hệ thống vẫn suy giảm dưới adversarial attacks và neural encoding/compression \cite{asvspoof5_eval}, nên robustness cần được xem như một tầng thiết kế hệ thống. Whisper-based detector hoặc Whisper+AASIST là hướng emerging cho foundation-model front-end \cite{whisper_aasist}, nhưng trong literature hiện tại Wav2Vec2/XLS-R/WavLM vẫn là các encoder được dùng rộng rãi hơn trong anti-spoofing benchmark.
+
+\begin{table}[H]
+    \centering
+    \footnotesize
+    \begin{adjustbox}{width=\textwidth}
+    \begin{tabular}{p{3.0cm}|p{4.0cm}|p{5.0cm}|p{4.0cm}}
+        \textbf{Nhóm} & \textbf{Paper/dataset đại diện} & \textbf{Vai trò trong review} & \textbf{Trạng thái trong báo cáo}
+        \\ \hline
+        Modern benchmark & ASVspoof 5 design/evaluation \cite{asvspoof5_design,asvspoof5_eval} & Crowdsourced speech, adversarial setting, neural encoding/compression & Reproduce một phần qua Track 1 dev; full eval còn pending
+        \\ \hline
+        Codec-based attacks & CodecFake, CodecFake+ \cite{codecfake,codecfakeplus} & Chỉ ra gap với CoSG/neural codec speech & Chưa reproduce; đưa vào future work
+        \\ \hline
+        Practical replay & EchoFake \cite{echofake} & Zero-shot TTS + physical replay dưới device/environment đa dạng & Chưa reproduce; lệch LA/DF scope
+        \\ \hline
+        Partial/localized fake & ADD 2022/2023, PartialSpoof \cite{add2022,add2023,partialspoof} & Mở rộng sang low-quality, partial fake, localization & Chưa reproduce; cần task/metric khác
+        \\ \hline
+        SSL back-end design & WavLM+MFA, WavLM back-ends/ensemble \cite{wavlm_mfa,wavlm_backend,wavlm_ensemble} & Đại diện cho hướng SSL + fusion gần đây & Chưa reproduce; nên cân nhắc sau XLS-R baseline
+        \\ \hline
+        Reproduced SSL systems & AASIST3, XLS-R+AASIST, Nes2Net \cite{aasist3,ssl_aasist,nes2net} & Liên hệ trực tiếp với sáu mô hình Chương \ref{chap:experiment} & Đã đưa vào bảng EER
+    \end{tabular}
+    \end{adjustbox}
+    \caption{Một số nguồn đại diện cần nhắc trong literature review.}
+    \label{tab:literature-sources}
+\end{table}
+
+Bảng \ref{tab:reproduced-models} tổng hợp sáu mô hình được reproduce trong Chương \ref{chap:experiment}. Các giá trị hiệu năng trong cột ``Kết quả paper'' chỉ để đặt mô hình vào bối cảnh, không dùng thay cho kết quả reproduce.
+
+\begin{table}[H]
+    \centering
+    \footnotesize
+    \begin{adjustbox}{width=\textwidth}
+    \begin{tabular}{p{2.5cm}|p{2.7cm}|p{2.6cm}|p{2.1cm}|p{3.7cm}|p{3.7cm}|p{3.3cm}}
+        \textbf{Mô hình} & \textbf{Input/front-end} & \textbf{Back-end} & \textbf{Compute cost} & \textbf{Điểm mạnh kỳ vọng} & \textbf{Failure mode cần chú ý} & \textbf{Kết quả paper}
+        \\ \hline
+        LFCC + LCNN & LFCC spectral features & LCNN & Thấp & Nhẹ, dễ train, phù hợp baseline & Nhạy với codec và unseen artifacts & LFCC/LCNN variants thường là baseline trong ASVspoof
+        \\ \hline
+        AASIST & Raw waveform & Spectro-temporal graph attention & Thấp-trung bình & Compact, học cue trực tiếp từ waveform & Có thể overfit vào artifact của ASV19-style attacks & 0.83\% EER trên ASVspoof 2019 LA \cite{aasist}
+        \\ \hline
+        AASIST-L & Raw waveform & Lightweight AASIST & Thấp & Giảm tham số, phù hợp constrained setting & Capacity thấp hơn AASIST, vẫn thiếu SSL prior & 0.99\% EER trên ASVspoof 2019 LA \cite{aasist}
+        \\ \hline
+        AASIST3 & Wav2Vec2 SSL features & KAN bridge + AASIST & Cao & Khai thác SSL representation và regularization & Phụ thuộc checkpoint/condition ASVspoof 2024; nặng & Báo cáo cho ASVspoof 2024 \cite{aasist3}
+        \\ \hline
+        XLS-R + AASIST & XLS-R 300M & AASIST & Cao & Cross-lingual SSL prior, back-end đã quen với spoofing & Tốn VRAM; hiệu năng phụ thuộc fine-tuning/checkpoint & Kết quả mạnh trên ASVspoof 2021 LA/DF \cite{ssl_aasist}
+        \\ \hline
+        XLS-R + Nes2Net-X & XLS-R 300M & Nes2Net-X & Cao, back-end nhẹ & Tận dụng multi-layer SSL features với back-end gọn & Front-end vẫn chiếm chi phí chính & Kết quả tốt trên ASVspoof 2021 và In-the-Wild \cite{nes2net}
+    \end{tabular}
+    \end{adjustbox}
+    \caption{So sánh sáu mô hình được tái lập.}
+    \label{tab:reproduced-models}
+\end{table}
+
+\section{Phương pháp đánh giá}
+
+Metric chính của báo cáo là EER. Với một ngưỡng $\tau$, mô hình phân loại các utterance có score $s \geq \tau$ là \textit{bonafide} và $s < \tau$ là \textit{spoof}. Khi đó:
+\begin{equation}
+    \mathrm{FAR}(\tau) = \frac{\mathrm{FP}(\tau)}{\mathrm{FP}(\tau) + \mathrm{TN}(\tau)}
+\end{equation}
+\begin{equation}
+    \mathrm{FRR}(\tau) = \frac{\mathrm{FN}(\tau)}{\mathrm{FN}(\tau) + \mathrm{TP}(\tau)}
+\end{equation}
+
+Ở đây FAR (False Acceptance Rate) là tỉ lệ \textit{spoof} bị chấp nhận nhầm như \textit{bonafide}, còn FRR (False Rejection Rate) là tỉ lệ \textit{bonafide} bị từ chối nhầm như \textit{spoof}. EER là giá trị tại ngưỡng $\tau^*$ sao cho:
+\begin{equation}
+    \mathrm{FAR}(\tau^*) \approx \mathrm{FRR}(\tau^*).
+\end{equation}
+Trong thực tế, $\tau^*$ được tìm bằng cách sweep qua các score hoặc nội suy trên ROC/DET curve.
+
+Ưu điểm của EER là không phụ thuộc vào một operating threshold cố định, nên phù hợp để so sánh các mô hình có thang score khác nhau. Đây là lý do EER được dùng làm metric chính trong Chương \ref{chap:experiment}, nơi mục tiêu là reproduce và so sánh tương đối giữa sáu mô hình trên bốn dataset. Tuy nhiên EER cũng có hạn chế: nó giả định hai loại lỗi có chi phí cân bằng, trong khi deployment thực tế có thể xem spoof false acceptance nguy hiểm hơn bonafide false rejection. EER cũng không phản ánh calibration của score; một mô hình có EER thấp vẫn có thể tạo score không tương ứng với xác suất thật, gây khó khi chọn threshold cố định.
+
+Các challenge ASVspoof còn dùng minimum tandem Detection Cost Function (min t-DCF) để đánh giá CM khi đặt trong hệ thống ASV hoàn chỉnh \cite{tdcf}. Metric này tính đến prior và cost của nhiều loại lỗi trong pipeline ASV+CM, nên gần deployment hơn EER trong bối cảnh speaker verification. Tuy nhiên min t-DCF cần thông tin về ASV system, ASV score và cost model. Trong các kết quả reproduce của báo cáo, dữ liệu hiện có chỉ gồm CM scores và labels, vì vậy EER là lựa chọn nhất quán hơn cho phạm vi Thực tập 1.
+
+Ngoài EER, ROC curve và DET curve là công cụ trực quan để xem trade-off giữa các loại lỗi ở nhiều threshold. ROC biểu diễn True Positive Rate theo False Positive Rate; DET biểu diễn FAR theo FRR trên thang xác suất Gaussian, thường được cộng đồng speaker verification và anti-spoofing dùng vì dễ quan sát vùng lỗi thấp. Calibration metrics như log loss hoặc Expected Calibration Error có ý nghĩa khi hệ thống cần score xác suất hoặc threshold cố định, nhưng chưa được phân tích sâu trong báo cáo này.
+
+\section{Các thách thức hiện tại}
+
+Từ các survey gần đây và từ thiết kế của các benchmark ASVspoof/In-the-Wild, có thể rút ra bốn thách thức chính làm nền cho phần thực nghiệm ở Chương \ref{chap:experiment} \cite{asvspoof5_arxiv2024,in_the_wild,sdd_survey}.
+
+\textbf{Cross-domain generalization.} Dataset evidence rõ nhất là khoảng cách giữa clean benchmark và in-the-wild benchmark. ASVspoof 2019 LA có điều kiện kiểm soát, attack metadata rõ và ít yếu tố channel phức tạp. In-the-Wild lại chứa audio từ nguồn công khai, speaker distribution khác, codec khác và attack metadata thiếu. Nếu mô hình học artifact phụ thuộc dataset thay vì cue tổng quát của spoofed speech, EER sẽ tăng mạnh khi chuyển domain. Về mặt kiến trúc, hand-crafted features và small end-to-end models dễ bị ảnh hưởng hơn vì representation được học trong phạm vi dữ liệu anti-spoofing hẹp. SSL front-end được kỳ vọng giảm một phần gap này nhờ pre-training trên audio đa dạng, nhưng cần kết quả cross-dataset ở Chương \ref{chap:experiment} để kiểm chứng trong project cụ thể.
+
+\textbf{Codec robustness.} ASVspoof 2021 DF được thiết kế trực tiếp cho vấn đề này: audio từ nguồn ASVspoof 2019 được xử lý qua nhiều codec/bitrate \cite{asvspoof2021}. Codec lossy có thể xoá high-frequency components, làm mờ phase/spectral artifacts hoặc tạo artifact mới không liên quan đến synthesis. Điều này ảnh hưởng đặc biệt tới các mô hình dựa vào spectral cues cục bộ như LFCC+LCNN, và cũng có thể ảnh hưởng tới raw waveform models nếu chúng học artifact ở waveform distribution gốc. Nếu SSL representation học được cấu trúc speech ổn định hơn, các mô hình XLS-R-based trong Chương \ref{chap:experiment} nên có generalization gap nhỏ hơn trên ASVspoof 2021 DF.
+
+\textbf{Modern attacks và adversarial setting.} Các hệ TTS/VC hiện đại dùng neural codec, diffusion hoặc pipeline nhiều tầng có artifact khác với các hệ cũ trong ASVspoof 2019. ASVspoof 5 đưa thêm các attack gần thời điểm hiện tại hơn và có adversarial track riêng \cite{asvspoof5_arxiv2024,asvspoof5_design,asvspoof5_eval}. CodecFake/CodecFake+ cũng cho thấy deepfake từ codec-based speech generation có thể tạo ra failure mode khác với vocoder-era datasets \cite{codecfake,codecfakeplus}. Thách thức ở đây không chỉ là thêm nhiều attack, mà là thay đổi bản chất của cue: detector có thể không còn tìm thấy dấu hiệu vocoder/spectral quen thuộc. Vì vậy thứ hạng mô hình trên ASVspoof 2019 LA không nhất thiết dự đoán thứ hạng trên ASVspoof 5 hoặc CodecFake-style data.
+
+\textbf{Multi-linguality, fairness và deployment constraints.} Phần lớn benchmark kinh điển tập trung tiếng Anh hoặc một số corpus giới hạn. MLAAD v9 mở rộng câu hỏi sang 51 ngôn ngữ, cho thấy SDD không nên chỉ được đánh giá trên English-centric data \cite{mlaad}. EchoFake lại nhấn mạnh ràng buộc deployment khác: audio synthetic có thể đi qua replay channel và thiết bị tiêu dùng trước khi đến detector \cite{echofake}. Ngoài ra, deployment thực tế còn bị ràng buộc bởi latency, VRAM, privacy và khả năng chạy trên edge device. AASIST/AASIST-L có lợi thế compute, nhưng có thể kém ổn định khi domain thay đổi; XLS-R/Nes2Net có lợi thế representation nhưng chi phí cao. Trade-off này không được giải quyết chỉ bằng một bảng EER, mà cần phân tích đồng thời accuracy, robustness và resource cost trong các bước tiếp theo.
+
+Các thách thức trên tạo khung diễn giải cho Chương \ref{chap:experiment}: ASVspoof 2019 LA kiểm tra clean benchmark performance, ASVspoof 2021 DF kiểm tra codec robustness, ASVspoof 5 kiểm tra modern attack robustness ở mức sơ bộ, và In-the-Wild kiểm tra cross-domain generalization.

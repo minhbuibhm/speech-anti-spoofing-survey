@@ -44,7 +44,7 @@ Theo điều kiện thu âm
 │   └── Đặc điểm: EER thấp, nhưng domain gap lớn so với thực tế
 └── In-the-wild (scraped từ internet / thực tế)
     ├── Scraping từ mạng xã hội, YouTube, podcast
-    ├── Ví dụ: In-the-Wild (Müller et al., 2022), MLAAD (nhiều phần)
+    ├── Ví dụ: In-the-Wild (Müller et al., 2022), EchoFake (replay practical), MLAAD (nhiều phần)
     └── Đặc điểm: Điều kiện đa dạng, codec đa dạng, khó kiểm soát metadata
 ```
 
@@ -67,12 +67,17 @@ Theo tính chất attack
 ├── Multi-attack (nhiều TTS + VC systems)
 │   ├── ASVspoof 2019 LA: 19 attacks (A01–A19)
 │   ├── ASVspoof 2021 DF: kế thừa ASV2019 + lossy codec processing
-│   ├── ASVspoof 5 (2024): 32 attacks (neural codec, diffusion-based)
+│   ├── ASVspoof 5 (2024/2025): 32 attacks, crowdsourced speech, adversarial setting
 │   ├── WaveFake: 6 GAN-based TTS architectures
-│   └── MLAAD: ~23 TTS engines, đa ngôn ngữ
-└── Adversarial attacks
-    ├── ASVspoof 5 (2024): bao gồm adversarial perturbation track
-    └── Đặc điểm: Attacker tối ưu hóa để qua mặt mô hình phòng thủ cụ thể
+│   ├── MLAAD v9: 140 TTS models, 51 ngôn ngữ
+│   ├── CodecFake/CodecFake+: neural codec / CoSG attacks
+│   └── ADD 2022/2023: low-quality, partially fake, fake game, algorithm recognition
+├── Adversarial attacks
+│   ├── ASVspoof 5 (2024): bao gồm adversarial perturbation track
+│   └── Đặc điểm: Attacker tối ưu hóa để qua mặt mô hình phòng thủ cụ thể
+└── Partial / localized manipulation
+    ├── PartialSpoof: một utterance trộn bonafide + spoofed segments
+    └── ADD 2022/2023 Track RL/PF: phát hiện hoặc định vị vùng bị sửa
 ```
 
 **Ưu điểm multi-attack:** Đánh giá được khả năng tổng quát hóa sang các TTS/VC system mới chưa thấy trong train. Là tiêu chuẩn của ASVspoof challenges từ 2019 trở đi.
@@ -95,7 +100,7 @@ Theo ngôn ngữ
 │   └── WaveFake (tiếng Anh + tiếng Nhật)
 └── Multi-lingual
     ├── MLAAD (Multi-Language Audio Anti-Spoofing Dataset)
-    │   ├── ~23 TTS engines, nhiều ngôn ngữ châu Âu + châu Á
+    │   ├── v9: 140 TTS models, 78 architectures, 51 languages
     │   └── Phù hợp cho nghiên cứu cross-lingual generalization
     └── ASVspoof 5 (2024)
         └── Mở rộng sang đa ngôn ngữ so với các phiên bản trước
@@ -113,12 +118,16 @@ Theo ngôn ngữ
 |---------|-----|----------|----------------------|-----------|--------|---------------|----------------|---------|
 | ASVspoof 2019 LA | 2019 | Tiếng Anh | ~73K utterances (train+dev+eval) | ~7.3K (eval) | ~64K (eval) | 19 (A01–A19, TTS+VC) | Clean lab, benchmark chuẩn, metadata đầy đủ | Không có codec processing; xa thực tế |
 | ASVspoof 2021 DF | 2021 | Tiếng Anh | ~611K utterances (eval) | — | — | Kế thừa ASV2019 + codec | Audio ASV2019 được re-encode qua 100+ codec configs | Ground truth label khó align; distribution shift |
-| ASVspoof 5 (2024) | 2024 | Đa ngôn ngữ | ~1M utterances (ước tính) | — | — | 32 (neural codec, diffusion, VC modern) | Adversarial track, multi-codec, hiện đại nhất | Dataset lớn, đòi hỏi tài nguyên tính toán cao |
+| ASVspoof 5 (2024/2025) | 2024 | Đa ngôn ngữ | project dùng 140,950 utterances dev split; official database lớn hơn | — | — | 32 algorithms | Crowdsourced speech, 32 attacks, surrogate/adversarial setting, neural encoding/compression được phân tích trong paper 2026 | Dataset lớn, cần phân biệt dev/eval và track/metric |
 | In-the-Wild | 2022 | Chủ yếu tiếng Anh | ~38.6K utterances (ước tính) | ~19.9K | ~18.7K | Không rõ (scraped) | Scraped mạng xã hội, 58 speakers, điều kiện thực tế | Ground truth bất định, attack type không xác định |
-| MLAAD | 2023 | Đa ngôn ngữ (~23) | ~76K utterances (ước tính) | ~6.3K | ~69K | ~23 TTS engines | Đa ngôn ngữ, phủ rộng TTS system | Không có VC; bonafide lấy từ nguồn đa dạng |
-| FoR (Fake-or-Real) | 2019 | Tiếng Anh | ~198K utterances | ~87K | ~111K | 7 TTS systems | Cân bằng bonafide/spoof, đơn giản | Attack type cũ, không còn phù hợp SOTA |
+| MLAAD v9 | 2024/2026 | Đa ngôn ngữ (51) | 678.3h synthetic voice theo arXiv v9 | — | — | 140 TTS models / 78 architectures | Dataset multi-lingual mạnh nhất để kiểm tra cross-lingual generalization | Chủ yếu TTS; cần ghép bonafide tương ứng để tạo balanced setup |
+| FoR (Fake-or-Real) | 2019 | Tiếng Anh | ~198K utterances | ~87K | ~111K | 7 TTS systems | Cân bằng bonafide/spoof, đơn giản | Attack type cũ, không còn đại diện cho các tấn công hiện nay |
 | WaveFake | 2021 | Tiếng Anh + Nhật | ~104K utterances | ~27K | ~77K | 6 GAN-based vocoders | Tập trung vocoder artifacts | Chỉ TTS (không có VC), attack type giới hạn |
-| EchoFake | 2025 | Tiếng Anh | ~40K utterances (ước tính) | — | — | Neural codec + replay | Kết hợp TTS hiện đại với replay physical channel | Rất mới, ít được reproduce |
+| CodecFake | 2024 | Anh/Trung (tuỳ split) | 707K+ rows trên HF mirror | — | — | Codec-based TTS/CoSG | Dataset đầu tiên nhắm vào codec-based deepfake audio; cho thấy detector train trên dataset truyền thống kém với CoSG | Rất chuyên biệt cho neural codec; chưa phải challenge canonical |
+| CodecFake+ | 2025 | Nhiều nguồn | training qua 31 codec models, eval từ 17 CoSG models | — | — | 31 codec / 17 CoSG | Mở rộng lớn cho neural codec taxonomy và CodecFake detection | Work-in-progress, chi phí lớn, chưa cần cho Internship 1 |
+| EchoFake | 2025 | Tiếng Anh | >120h audio, >13K speakers | — | — | Zero-shot TTS + physical replay | Replay-aware practical SDD, kết hợp synthetic + replay dưới device/environment đa dạng | Preprint mới; lệch khỏi LA-only evaluation hiện tại |
+| ADD 2022/2023 | 2022/2023 | Mandarin-heavy | nhiều track challenge | — | — | Low-quality, partial fake, fake game, algorithm recognition | Mở rộng task ngoài binary utterance-level detection | Lệch scope report hiện tại; protocol theo challenge riêng |
+| PartialSpoof | 2021/2022 | Anh | dựa trên ASVspoof 2019 LA | — | — | Partially spoofed segments | Benchmark điển hình cho partial/segment-level spoof detection | Cần segment-level labels/metrics, không khớp pipeline EER utterance-level hiện tại |
 
 *Ghi chú: Các số liệu kích thước ghi "ước tính" là từ paper gốc hoặc repo; số liệu chính xác cần verify từ tài liệu tương ứng.*
 
@@ -128,7 +137,7 @@ Theo ngôn ngữ
 
 ### 3.1 ASVspoof 2019 LA
 
-ASVspoof 2019 LA (Logical Access) được giới thiệu trong khuôn khổ ASVspoof Challenge 2019 (Wang et al., 2020) và nhanh chóng trở thành benchmark chuẩn cho nghiên cứu SDD. Dataset được xây dựng trên VCTK corpus với giọng nói tiếng Anh từ các speaker khác nhau. Tập eval bao gồm khoảng 71,237 utterance (theo số liệu từ dự án này), trong đó 19 loại attack (A01–A19) bao gồm nhiều hệ thống TTS và VC từ thống kê truyền thống (HMM, GMM) đến neural (WaveNet-based). Điểm mạnh lớn nhất của ASVspoof 2019 LA là điều kiện thu âm sạch (lab-recorded), metadata chi tiết về attack type cho từng utterance, và sự nhất quán về cách tính EER — điều này cho phép so sánh công bằng giữa các mô hình. Tuy nhiên, chính sự "sạch" này cũng là hạn chế: không có codec processing, không có nhiễu môi trường, và tập attack bao gồm nhiều hệ thống TTS từ năm 2018–2019, không còn đại diện cho SOTA tấn công hiện nay. Trong dự án này, ASVspoof 2019 LA đóng vai trò benchmark baseline để đo "điểm khởi đầu" trước khi kiểm tra khả năng tổng quát hóa sang các tập khó hơn.
+ASVspoof 2019 LA (Logical Access) được giới thiệu trong khuôn khổ ASVspoof Challenge 2019 (Wang et al., 2020) và nhanh chóng trở thành benchmark chuẩn cho nghiên cứu SDD. Dataset được xây dựng trên VCTK corpus với giọng nói tiếng Anh từ các speaker khác nhau. Tập eval bao gồm khoảng 71,237 utterance (theo số liệu từ dự án này), trong đó 19 loại attack (A01–A19) bao gồm nhiều hệ thống TTS và VC từ thống kê truyền thống (HMM, GMM) đến neural (WaveNet-based). Điểm mạnh lớn nhất của ASVspoof 2019 LA là điều kiện thu âm sạch (lab-recorded), metadata chi tiết về attack type cho từng utterance, và sự nhất quán về cách tính EER — điều này cho phép so sánh công bằng giữa các mô hình. Tuy nhiên, chính sự "sạch" này cũng là hạn chế: không có codec processing, không có nhiễu môi trường, và tập attack bao gồm nhiều hệ thống TTS từ năm 2018–2019, không còn đại diện cho các tấn công neural codec/diffusion gần đây. Trong dự án này, ASVspoof 2019 LA đóng vai trò benchmark baseline để đo "điểm khởi đầu" trước khi kiểm tra khả năng tổng quát hóa sang các tập khó hơn.
 
 ### 3.2 ASVspoof 2021 DF
 
@@ -144,11 +153,11 @@ In-the-Wild dataset (Müller et al., 2022) được thu thập bằng cách scra
 
 ### 3.5 MLAAD (Multi-Language Audio Anti-Spoofing Dataset)
 
-MLAAD (Yi et al., 2023) được thiết kế để giải quyết vấn đề mono-lingual của hầu hết các benchmark SDD hiện có. Dataset bao gồm audio giả mạo được tạo bởi khoảng 23 TTS engine khác nhau trên nhiều ngôn ngữ, bao gồm tiếng Anh, Đức, Pháp, Tây Ban Nha, và một số ngôn ngữ châu Á. Bonafide audio được thu thập từ các nguồn công cộng đa ngôn ngữ như FLEURS, Common Voice, v.v. MLAAD phù hợp để kiểm tra xem mô hình train trên tiếng Anh có thể tổng quát hóa sang ngôn ngữ khác không — câu hỏi quan trọng cho deployment thực tế ở các nước không nói tiếng Anh như Việt Nam. Hạn chế: chỉ có TTS attack (không có VC), và metadata về codec ít chi tiết hơn ASVspoof 5.
+MLAAD (Müller et al., 2024; arXiv v9 cập nhật 2026) được thiết kế để giải quyết vấn đề mono-lingual của nhiều benchmark SDD. Bản v9 công bố 140 TTS models, 78 architectures và 678.3 giờ synthetic voice trên 51 ngôn ngữ. MLAAD phù hợp để kiểm tra xem detector train trên tiếng Anh hoặc tiếng Trung có thể tổng quát hóa sang ngôn ngữ khác không — câu hỏi quan trọng cho deployment ở các ngôn ngữ như tiếng Việt. Hạn chế chính là phạm vi thiên về TTS; nếu dùng cho evaluation cần ghép với bonafide data tương ứng và thiết kế split cẩn thận để tránh bias theo nguồn dữ liệu.
 
 ### 3.6 FoR (Fake-or-Real)
 
-FoR dataset (Reimao và Tzerpos, 2019) là một trong những dataset SDD đầu tiên được xây dựng có chủ đích cho bài toán phân biệt real/fake speech. Dataset bao gồm khoảng 198K utterance từ 7 TTS system, với tỉ lệ bonafide/spoof khá cân bằng (87K/111K). Bonafide audio lấy từ nhiều nguồn công cộng đa dạng (LibriSpeech, VCTK, v.v.), giúp cải thiện diversity của giọng nói thật. Điểm yếu của FoR là các TTS system được sử dụng (Google WaveNet-based, Festival, v.v.) đã lỗi thời so với SOTA hiện nay, và không có codec processing hay điều kiện thực tế. FoR hiện chủ yếu được dùng như quick sanity check hoặc để thử nghiệm trong paper, ít được dùng làm main benchmark trong nghiên cứu mới.
+FoR dataset (Reimao và Tzerpos, 2019) là một trong những dataset SDD đầu tiên được xây dựng có chủ đích cho bài toán phân biệt real/fake speech. Dataset bao gồm khoảng 198K utterance từ 7 TTS system, với tỉ lệ bonafide/spoof khá cân bằng (87K/111K). Bonafide audio lấy từ nhiều nguồn công cộng đa dạng (LibriSpeech, VCTK, v.v.), giúp cải thiện diversity của giọng nói thật. Điểm yếu của FoR là các TTS system được sử dụng (Google WaveNet-based, Festival, v.v.) đã cũ so với các hệ TTS/VC/neural codec gần đây, và không có codec processing hay điều kiện thực tế. FoR hiện chủ yếu được dùng như quick sanity check hoặc để thử nghiệm trong paper, ít được dùng làm main benchmark trong nghiên cứu mới.
 
 ### 3.7 WaveFake
 
@@ -156,7 +165,19 @@ WaveFake (Frank và Schönherr, 2021) tập trung vào một phân khúc cụ th
 
 ### 3.8 EchoFake (2025)
 
-EchoFake (ước tính công bố 2025) là dataset nhắm đến tình huống kết hợp hai dạng tấn công: audio deepfake được tạo bởi các neural codec TTS hiện đại (EnCodec, SNAC, v.v.) và sau đó được phát lại qua thiết bị vật lý (loa, điện thoại) rồi thu lại bằng mic — tức là kết hợp yếu tố của cả LA lẫn PA. Thiết kế này nhằm mô phỏng kịch bản thực tế hơn so với các dataset thuần LA hay thuần PA. Thông tin chi tiết về dataset này còn hạn chế tại thời điểm viết báo cáo; nếu được xác nhận, EchoFake sẽ là dataset quan trọng để kiểm tra khả năng của các mô hình trong điều kiện "tấn công kép" vừa deepfake vừa replay.
+EchoFake (Zhang et al., 2025) là dataset replay-aware nhắm đến tình huống thực tế: audio synthetic từ zero-shot TTS được phát lại qua thiết bị vật lý và thu trong nhiều cấu hình device/environment. Paper công bố hơn 120 giờ audio từ hơn 13,000 speakers và chỉ ra detector train trên dataset synthetic sạch có thể suy giảm mạnh khi gặp replayed audio. EchoFake phù hợp cho Internship 2 nếu câu hỏi nghiên cứu mở rộng từ LA/DF sang practical deployment; trong Internship 1 chưa đưa vào reproduce vì pipeline hiện tại tập trung utterance-level LA/DF và chưa xử lý PA/replay metadata.
+
+### 3.9 CodecFake và CodecFake+
+
+CodecFake (Wu et al., 2024) và CodecFake+ (Chen et al., 2025) nhắm đến một khoảng trống mới: deepfake speech từ codec-based speech generation (CoSG), nơi audio được sinh từ discrete neural codec tokens thay vì pipeline vocoder truyền thống. CodecFake chứng minh các detector train trên dataset phổ biến như ASVspoof/WaveFake có thể kém hiệu quả với CoSG. CodecFake+ mở rộng đáng kể bằng cách dùng 31 open-source neural codec models để tạo training data và dùng web-sourced samples từ 17 CoSG models cho evaluation, đồng thời đề xuất taxonomy theo vector quantizer, auxiliary objectives và decoder types. Đây là nhóm dataset nên nhắc trong literature review vì liên quan trực tiếp đến "modern neural codec attacks"; chưa reproduce trong Internship 1 vì chi phí dữ liệu lớn và vì ASVspoof 5 đã đóng vai trò benchmark hiện đại chính trong pipeline hiện tại.
+
+### 3.10 ADD 2022/2023
+
+ADD 2022 và ADD 2023 là chuỗi Audio Deepfake Detection Challenge tập trung vào các tình huống ngoài binary clean LA: low-quality fake audio, partially fake audio, fake game, manipulation region localization và deepfake algorithm recognition. Chúng quan trọng vì mở rộng bài toán từ "utterance này real/fake?" sang "đoạn nào bị chỉnh sửa?" hoặc "nguồn sinh nào tạo ra audio?". Tuy nhiên, nhiều track có protocol/metric riêng và dữ liệu Mandarin-heavy, nên không phù hợp để đưa vào reproduce 6 model x 4 dataset của báo cáo hiện tại.
+
+### 3.11 PartialSpoof
+
+PartialSpoof (Zhang et al., 2021/2022) được xây dựng từ ASVspoof 2019 LA để nghiên cứu utterance chỉ bị giả mạo một phần. Dataset này có nhãn segment-level, phù hợp cho bài toán localization hoặc multi-task utterance/segment detection. Nó nên được nhắc trong taxonomy vì phản ánh threat model thực tế hơn full-utterance spoof, nhưng không đưa vào benchmark chính vì code hiện tại chỉ tính EER utterance-level và không có module phát hiện vị trí đoạn giả.
 
 ---
 
@@ -172,7 +193,7 @@ Nhiều mô hình SDD, đặc biệt là các mô hình sử dụng đặc trưn
 
 **Dataset đại diện:** In-the-Wild (Müller et al., 2022)
 
-Ngay cả khi đã xử lý codec robustness, các mô hình vẫn gặp vấn đề nghiêm trọng với dữ liệu "thực sự trong tự nhiên" — tức là audio được scraping từ internet với đầy đủ các yếu tố: codec đa dạng, chất lượng mic khác nhau, nhiễu nền, kênh truyền, và quan trọng nhất là **phân bố speaker và attack type hoàn toàn khác** với các tập train được dùng. In-the-Wild là dataset đại diện tốt nhất cho thách thức này. Kết quả dự án cho thấy tất cả các mô hình đều bị degradation mạnh: AASIST từ 4.6% lên 41.8%, LFCC+LCNN từ 19.6% lên 70.2%. Ngay cả mô hình tốt nhất XLS-R+Nes2Net cũng tăng từ 0.45% lên 5.6%. Thách thức này khó giải quyết đơn thuần bằng augmentation vì không biết trước phân bố của "wild audio"; cần các phương pháp như domain adaptation, test-time adaptation, hoặc contrastive learning để học representation domain-agnostic.
+Ngay cả khi đã xử lý codec robustness, các mô hình vẫn gặp vấn đề nghiêm trọng với dữ liệu "thực sự trong tự nhiên" — tức là audio được scraping từ internet với đầy đủ các yếu tố: codec đa dạng, chất lượng mic khác nhau, nhiễu nền, kênh truyền, và quan trọng nhất là **phân bố speaker và attack type hoàn toàn khác** với các tập train được dùng. In-the-Wild là dataset đại diện rõ cho thách thức này. Kết quả dự án cho thấy tất cả các mô hình đều bị degradation mạnh: AASIST từ 4.6% lên 41.8%, LFCC+LCNN từ 19.6% lên 70.2%. Mô hình có EER thấp nhất trong thí nghiệm hiện tại, XLS-R+Nes2Net, cũng tăng từ 0.45% lên 5.6%. Thách thức này khó giải quyết đơn thuần bằng augmentation vì không biết trước phân bố của "wild audio"; cần các phương pháp như domain adaptation, test-time adaptation, hoặc contrastive learning để học representation domain-agnostic.
 
 ### 4.3 Adversarial Attacks và Neural Codec Attacks
 
@@ -190,19 +211,33 @@ Thế hệ tấn công mới nhất trong ASVspoof 5 bao gồm các hệ thống
 
 3. **Yamagishi, J., Wang, X., et al.** (2021). *ASVspoof 2021: Towards Spoofed and Deepfake Speech Detection in the Wild*. Proceedings of ASVspoof 2021 Workshop. — Paper mô tả ASVspoof 2021 LA/DF/PA và rationale cho codec processing.
 
-4. **Wang, X., et al.** (2024). *ASVspoof 5: Crowdsourced Speech Data, Deepfakes, and Adversarial Attacks at Scale*. arXiv:2408.09391. — Paper chính thức của ASVspoof 5 (2024), mô tả 32 attacks, adversarial track, và multi-codec setup.
+4. **Wang, X., et al.** (2024). *ASVspoof 5: Crowdsourced Speech Data, Deepfakes, and Adversarial Attacks at Scale*. arXiv:2408.08739. — Paper chính thức của ASVspoof 5 (2024), mô tả 32 attacks, adversarial track, và multi-codec setup.
 
 5. **Müller, N. M., Czempin, P., Dieckmann, F., Hummel, A., & Böttinger, K.** (2022). *Does Audio Deepfake Detection Generalize?* Interspeech 2022, 2783–2787. — Paper giới thiệu In-the-Wild dataset, đánh giá cross-dataset generalization của nhiều mô hình.
 
-6. **Yi, J., Bai, Y., Chen, T., Du, L., Zhang, Z., Wang, X., & Zhao, H.** (2023). *Add 2023: The Second Audio Deepfake Detection Challenge*. ICASSP 2023. — Bối cảnh thêm cho audio deepfake challenge và MLAAD.
+6. **Yi, J., Tao, J., Fu, R., Yan, X., Wang, C., Wang, T., et al.** (2023). *ADD 2023: The Second Audio Deepfake Detection Challenge*. arXiv:2305.13774. — Bối cảnh thêm cho audio deepfake challenge, localization và algorithm recognition.
 
 7. **Frank, J., & Schönherr, L.** (2021). *WaveFake: A Data Set to Facilitate Audio Deepfake Detection*. Proceedings of NeurIPS 2021 Track on Datasets and Benchmarks. — Paper giới thiệu WaveFake, dataset tập trung GAN-based vocoder.
 
 8. **Reimao, R., & Tzerpos, V.** (2019). *For: A Dataset for Synthetic Speech Detection*. Proceedings of ICDSP 2019. — Paper giới thiệu Fake-or-Real (FoR) dataset.
 
-9. **Yi, J., et al.** (2023). *MLAAD: The Multi-Language Audio Anti-Spoofing Dataset*. arXiv:2401.09512. — Paper giới thiệu MLAAD, dataset đa ngôn ngữ cho SDD với ~23 TTS engines.
+9. **Müller, N. M., et al.** (2024/2026). *MLAAD: The Multi-Language Audio Anti-Spoofing Dataset*. arXiv:2401.09512. — Dataset đa ngôn ngữ; bản v9 công bố 140 TTS models, 78 architectures, 51 languages.
 
-10. **Zhang, Y., et al.** (2025). *A Comprehensive Survey on Deepfake Speech Detection: From Deep Learning Perspective*. PMC/arXiv (ước tính 2025). — Survey gần nhất về toàn cảnh SDD từ góc nhìn deep learning, bao gồm các phương pháp 2024–2025.
+10. **Yi, J., et al.** (2022). *ADD 2022: The First Audio Deep Synthesis Detection Challenge*. arXiv:2202.08433. — Challenge low-quality fake, partially fake và fake game.
+
+11. **Yi, J., et al.** (2023). *ADD 2023: The Second Audio Deepfake Detection Challenge*. arXiv:2305.13774. — Challenge mở rộng sang localization và deepfake algorithm recognition.
+
+12. **Zhang, L., Wang, X., Cooper, E., Yamagishi, J., Patino, J., & Evans, N.** (2021/2022). *PartialSpoof Database / The PartialSpoof Database and Countermeasures*. — Dataset partially-spoofed audio với utterance- và segment-level labels.
+
+13. **Wu, H., Tseng, Y., & Lee, H.-y.** (2024). *CodecFake: Enhancing Anti-Spoofing Models Against Deepfake Audios from Codec-Based Speech Synthesis Systems*. arXiv:2406.07237. — Dataset đầu tiên cho codec-based deepfake audio.
+
+14. **Chen, X., Du, J., Wu, H., et al.** (2025). *CodecFake+: A Large-Scale Neural Audio Codec-Based Deepfake Speech Dataset*. arXiv:2501.08238. — Mở rộng CodecFake với 31 codec models và 17 CoSG models.
+
+15. **Zhang, T., Huang, Y., & Ren, Y.** (2025). *EchoFake: A Replay-Aware Dataset for Practical Speech Deepfake Detection*. arXiv:2510.19414. — Dataset replay-aware cho practical SDD.
+
+16. **Wang, X., et al.** (2025). *ASVspoof 5: Design, Collection and Validation of Resources for Spoofing, Deepfake, and Adversarial Attack Detection Using Crowdsourced Speech*. arXiv:2502.08857. — Paper thiết kế database ASVspoof 5.
+
+17. **Wang, X., Delgado, H., Evans, N., et al.** (2026). *ASVspoof 5: Evaluation of Spoofing, Deepfake, and Adversarial Attack Detection Using Crowdsourced Speech*. arXiv:2601.03944. — Paper phân tích kết quả challenge, calibration và degradation dưới adversarial/neural encoding.
 
 ---
 

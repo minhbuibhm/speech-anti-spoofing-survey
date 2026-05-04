@@ -1,0 +1,182 @@
+﻿\documentclass[12pt,a4paper,oneside]{book} % twoside for draf
+
+%\usepackage{babel}
+\usepackage[utf8]{vietnam}
+%\usepackage{times}
+\usepackage{graphicx}
+\usepackage{subcaption}
+
+\usepackage{mathptmx}	% same Time New Roma
+%\renewcommand{\rmdefault}{phv} % Arial
+%\renewcommand{\sfdefault}{phv} % Arial
+\usepackage{url}
+
+%link to part by click on contents region
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks,
+    citecolor=black,
+    filecolor=black,
+    linkcolor=black,
+    urlcolor=black
+}
+
+\usepackage{fancyhdr}
+\usepackage{algorithm2e}
+\usepackage{amsmath}
+\usepackage{array,tabularx}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{cases}
+\usepackage{tabularx}
+\usepackage{enumitem}
+
+\usepackage{xurl}
+\interfootnotelinepenalty=10000
+\usepackage{adjustbox}
+\usepackage{multirow}
+\usepackage{enumitem}
+\usepackage{bkthesis}
+\usepackage{tikz}
+\usetikzlibrary{shapes,arrows}
+
+\usepackage{acronym} 
+\usepackage{float}
+\usepackage{algpseudocode}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\usepackage{pdfpages}
+\usepackage{svg}
+\svgsetup{inkscapelatex=true}
+\pgfplotsset{compat=1.17}
+\newenvironment{conditions*}
+  {\par\vspace{\abovedisplayskip}\noindent
+   \tabularx{\columnwidth}{>{$}l<{$} @{${}:{}$} >{\raggedright\arraybackslash}X}}
+  {\endtabularx\par\vspace{\belowdisplayskip}}
+
+\tikzstyle{blank} = [text badly centered, node distance = 2cm, inner sep=0pt]
+\tikzstyle{block} = [rectangle, draw, 
+    text width=2em, text centered, minimum height=2em]
+\tikzstyle{line} = [draw, -latex']
+
+\newcolumntype{b}{>{\hsize=1.0\hsize}X}
+
+\crname{BÁO CÁO\\THỰC TẬP 1}
+\ctname{KHẢO SÁT VÀ ĐÁNH GIÁ CÁC PHƯƠNG PHÁP PHÁT HIỆN GIỌNG NÓI GIẢ MẠO}
+\cmajorName{Ngành: Khoa học Máy tính}
+\cstuname{
+	Học viên thực hiện: \\
+	\begin{tabular}{ l c }
+		Bùi Hoàng Minh & MSHV: 2470504
+  % \\
+		% DEF & MSSV: 15xxxxx
+	\end{tabular}
+}
+
+% \csCouncil{Hội đồng 5 Khoa học Máy Tính}
+\csSupervise{TS. Nguyễn Đức Dũng}
+% \csPhanbien{ThS. Võ Thanh Hùng}
+\csReviewer{}
+\cttime{05/2026}
+
+\thesislayout
+
+\begin{document}
+%-	Bìa cứng - màu xanh dương, chữ mạ vàng (xem mẫu đính kèm)
+%-	Trang tên (tờ lót): chất liệu giấy, nội dung giống như bìa LV
+%-	Ở gáy LV: in nhan đề LV (có thể in tóm tắt nếu nhan đề quá dài), size 15 – 17
+%-	Phiếu Nhiệm vụ LV, chấm điểm Hướng dẫn & Phản biện (đã ký): nhận từ GVHD & GVPB sau khi bảo vệ (theo lịch hẹn).
+%-	Lời cam đoan
+%-	Lời cảm ơn/ Lời ngỏ
+%-	Tóm tắt LV
+%-	Mục lục
+%-	Danh mục, bảng biểu, hình ảnh, ... (nếu có)
+%-	Nội dung LV
+%-	Danh mục TL tham khảo
+%-	Phụ lục (nếu có)
+
+\coverpage
+
+\frontmatter
+
+% add content here
+%-	Lời cam đoan
+\begin{declaration}
+Tôi xin cam đoan đây là công trình nghiên cứu của riêng tôi dưới sự hướng dẫn của TS. Nguyễn Đức Dũng. Nội dung nghiên cứu và các kết quả đều là trung thực và chưa từng được công bố trước đây. Các số liệu được sử dụng cho quá trình phân tích, nhận xét được chính chúng tôi thu thập từ nhiều nguồn khác nhau và sẽ được ghi rõ trong phần tài liệu tham khảo.
+
+Ngoài ra, chúng tôi cũng có sử dụng một số nhận xét, đánh giá và số liệu của các tác giả khác, cơ quan tổ chức khác. Tất cả  đều có trích dẫn và chú thích nguồn gốc.
+
+Nếu phát hiện có bất kì sự gian lận nào, chúng tôi xin hoàn toàn chịu trách nhiệm về nội dung thực tập của mình. Trường đại học Bách Khoa thành phố Hồ Chí Minh không liên quan đến những vi phạm tác quyền, bản quyền do chúng tôi gây ra trong quá trình thực hiện.
+
+\end{declaration}
+~
+
+\begin{acknowledgments}
+Trong quá trình nghiên cứu đề tài Luận văn tốt nghiệp, nhóm đã nhận được nhiều sự giúp đỡ và đóng góp quý báu. Đầu tiên, nhóm xin gửi lời cảm ơn sâu sắc đến TS. Nguyễn Đức Dũng, người đã tận tâm chia sẻ kinh nghiệm và kiến thức, đồng thời hỗ trợ nhóm hết mình trong thời gian hướng dẫn nhóm thực hiện đồ án môn học Thực tập 1. Tiếp theo, nhóm xin chân thành cảm ơn các thầy, cô giáo trong trường Đại học Bách Khoa Hồ Chí Minh nói chung và khoa Khoa học và Kỹ thuật Máy tính nói riêng đã luôn giúp đỡ, truyền đạt kiến thức và tạo điều kiện mọi mặt trong thời gian nhóm học tập tại trường. Cuối cùng, nhóm xin cảm ơn gia đình và bạn bè, những người đã quan tâm đến tiến độ của đề tài và tạo động lực để nhóm hoàn thành Luận văn tốt nghiệp.
+	
+\end{acknowledgments}
+~
+
+%
+\input{chapters/abbreviation-list.tex}
+
+\begin{abstract}
+
+Báo cáo này khảo sát và đánh giá các phương pháp phát hiện giọng nói giả mạo trong bối cảnh các kỹ thuật tổng hợp giọng nói và chuyển đổi giọng nói ngày càng dễ tiếp cận. Trọng tâm của báo cáo là bài toán Speech Deepfake Detection (SDD), trong đó hệ thống cần phân biệt một đoạn audio đầu vào là giọng thật (\textit{bonafide}) hay giọng giả mạo (\textit{spoof}). Báo cáo trình bày cơ sở lý thuyết về các dạng tấn công, các tập dữ liệu benchmark, các nhóm kiến trúc mô hình và phương pháp đánh giá bằng Equal Error Rate (EER).
+
+Bên cạnh phần khảo sát, báo cáo tái lập sáu mô hình tiêu biểu gồm LFCC+LCNN, AASIST, AASIST-L, AASIST3, XLS-R+AASIST và XLS-R+Nes2Net trên bốn tập dữ liệu: ASVspoof 2019 LA, ASVspoof 2021 DF, ASVspoof 5 Track 1 và In-the-Wild. Kết quả thực nghiệm cho thấy hiệu năng của các mô hình thay đổi đáng kể khi chuyển từ benchmark sạch sang dữ liệu có codec, tấn công hiện đại hoặc điều kiện in-the-wild. Nhóm mô hình sử dụng front-end self-supervised learning (SSL), đặc biệt XLS-R+Nes2Net, đạt EER thấp hơn và generalization gap nhỏ hơn trên hầu hết các dataset được khảo sát. Từ các kết quả này, báo cáo đề xuất các hướng phát triển tiếp theo gồm phân tích lỗi chi tiết trên ASVspoof 5, cô lập đóng góp của SSL front-end, thử nghiệm codec-aware training và mở rộng đánh giá sang các benchmark mới.
+
+\end{abstract}
+ 
+
+% sử dụng các phần bên dưới nếu cần:
+\tableofcontents
+%\listofsymbols
+\listoftables
+\listoffigures
+%\listofalgorithms
+
+
+\mainmatter
+
+\fancypagestyle{plain}{%
+\fancyhf{}
+\fancyfoot[LE, RO]{\thepage}
+\renewcommand{\headrulewidth}{0.0pt}
+}
+
+\pagestyle{fancy}
+\renewcommand{\chaptermark}[1]{\markboth{\MakeUppercase{#1}}{}}
+\fancyhf{}
+\fancyhead[LE,RO]{\leftmark}
+\fancyhead[RE,LO]{}
+\fancyfoot[LE,RO]{\thepage}
+\renewcommand{\footrulewidth}{0.4pt}
+
+%\fancyhead{}  % Clears all page headers and footers
+%\rhead{\thepage}  % Sets the right side header to show the page number
+%\lhead{}  % Clears the left side page header
+%\fancyfoot[positions]{footer}
+%\renewcommand{\footrulewidth}{0.4pt}
+
+%\pagestyle{fancy}  % Finally, use the "fancy" page style to implement the FancyHdr headers
+
+% \input{chapters/translation-table.tex}
+
+\input{chapters/Chapter1.tex}
+\input{chapters/Chapter2.tex}
+\input{chapters/Chapter3.tex}
+\input{chapters/Chapter4.tex}
+% \input{chapters/Chapter5.tex}
+% \input{chapters/Chapter6.tex}
+
+\appendix
+\bibliography{refs}
+\bibliographystyle{unsrt}
+
+%\bibliography{refs}
+%\bibliographystyle{plain}
+%-	Danh mục TL tham khảo
+%-	Phụ lục (nếu có)
+
+\end{document}

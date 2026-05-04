@@ -1,0 +1,29 @@
+﻿\chapter{Kết luận và hướng phát triển} \label{chap:conclusion}
+
+\section{Tóm tắt kết quả}
+
+Báo cáo đã khảo sát bài toán phát hiện giọng nói giả mạo trong bối cảnh các kỹ thuật tổng hợp và chuyển đổi giọng nói phát triển nhanh. Về mặt lý thuyết, báo cáo trình bày phát biểu bài toán SDD, vai trò của hệ thống CM trong pipeline ASV, các nhóm tấn công chính như Logical Access, Physical Access/replay, in-the-wild deepfake, adversarial và neural codec attacks. Báo cáo cũng tổng hợp các benchmark tiêu biểu, trong đó bốn dataset được sử dụng trực tiếp cho thí nghiệm gồm ASVspoof 2019 LA, ASVspoof 2021 DF, ASVspoof 5 Track 1 và In-the-Wild.
+
+Về thực nghiệm, báo cáo đã tái lập sáu mô hình đại diện cho các hướng tiếp cận khác nhau: LFCC+LCNN, AASIST, AASIST-L, AASIST3, XLS-R+AASIST và XLS-R+Nes2Net. Các mô hình được đánh giá trên cùng một pipeline tính EER, sử dụng điểm số \textit{bonafide} và nhãn nhị phân thống nhất. Cấu trúc kết quả được chuẩn hoá thành các file \texttt{results/<dataset>/results.pkl}, giúp các bước phân tích hậu kỳ ở Internship 2 có thể mở rộng mà không cần thay đổi nhiều logic xử lý.
+
+Kết quả chính cho thấy hiệu năng giữa các mô hình thay đổi rất mạnh theo dataset. Trên ASVspoof 2019 LA, các mô hình mạnh nhất đạt EER rất thấp, đặc biệt XLS-R + Nes2Net đạt 0.45\% và XLS-R + AASIST đạt 1.17\%. Tuy nhiên khi chuyển sang các dataset khó hơn, nhiều mô hình không dùng SSL front-end suy giảm rõ rệt. Ví dụ, AASIST tăng từ 4.59\% trên ASVspoof 2019 LA lên 17.70\% trên ASVspoof 2021 DF và 37.81\% trên ASVspoof 5. LFCC+LCNN tăng đặc biệt mạnh trên In-the-Wild, đạt 70.23\% EER.
+
+Quan sát nổi bật nhất là nhóm mô hình dùng XLS-R 300M làm front-end có generalization gap nhỏ hơn đáng kể. XLS-R + Nes2Net đạt 2.93\% trên ASVspoof 2021 DF, 1.80\% trên ASVspoof 5 và 5.57\% trên In-the-Wild, trong khi vẫn đạt 0.45\% trên ASVspoof 2019 LA. Điều này gợi ý rằng representation từ mô hình SSL lớn có thể cung cấp prior âm học ổn định hơn trước codec, domain shift và các dạng tấn công hiện đại. Tuy nhiên, kết luận này cần được kiểm chứng thêm bằng phân tích lỗi chi tiết, mở rộng số mô hình và đánh giá thêm các SSL front-end khác.
+
+\section{Đề xuất hướng tiếp cận ở mức ý niệm}
+
+Dựa trên kết quả hiện tại, hướng tiếp cận đầu tiên là xây dựng một pipeline phân tích lỗi có hệ thống trên ASVspoof 5. Thay vì chỉ so sánh EER tổng, cần phân rã lỗi theo attack tag, codec, metadata thu âm và phân phối score. Mục tiêu là xác định mô hình nào thất bại vì loại tấn công cụ thể, mô hình nào thất bại vì codec, và các utterance nào là hard examples chung cho nhiều mô hình. Kết quả phân tích này sẽ giúp quyết định nên cải thiện ở tầng front-end, back-end, augmentation hay calibration.
+
+Hướng tiếp cận thứ hai là cô lập đóng góp của SSL front-end. Kết quả hiện tại cho thấy các mô hình XLS-R-based hoạt động ổn định hơn, nhưng chưa đủ để khẳng định lợi ích đến từ XLS-R hay từ thiết kế back-end. Vì vậy, trong giai đoạn tiếp theo cần bổ sung biến thể Nes2Net không có XLS-R hoặc các back-end tương đương chạy trên representation khác. Đồng thời, có thể so sánh XLS-R với WavLM hoặc Wav2Vec2 trong cùng một protocol để đánh giá trade-off giữa hiệu năng, chi phí tính toán và khả năng tổng quát hoá.
+
+Hướng tiếp cận thứ ba là bổ sung robustness strategy ở mức dữ liệu và hệ thống. Với các lỗi liên quan đến codec, có thể thử augmentation theo codec/bitrate hoặc huấn luyện bổ sung trên dữ liệu kiểu CodecFake. Với các lỗi liên quan đến domain shift, có thể thử score fusion giữa mô hình raw waveform nhỏ và mô hình SSL lớn, hoặc calibration trên một dev set gần deployment hơn. Những đề xuất này mới ở mức ý niệm; việc chọn hướng cụ thể cần dựa trên error analysis đầy đủ ở ASVspoof 5 và kiểm chứng trên ít nhất một dataset ngoài ASVspoof.
+
+\section{Hướng phát triển}
+
+Trong Internship 2, bước đầu tiên là hoàn thiện đánh giá ASVspoof 5 trên full eval split và bổ sung các biểu đồ phân phối score, DET/ROC curve, lỗi theo attack type, lỗi theo codec và failure overlap giữa các mô hình. Kết quả này sẽ biến các nhận xét sơ bộ ở Chương \ref{chap:experiment} thành bằng chứng định lượng đủ chi tiết để chọn hướng cải tiến.
+
+Bước thứ hai là mở rộng tập mô hình theo cách có kiểm soát. Các thí nghiệm nên ưu tiên những biến thể giúp trả lời một câu hỏi rõ ràng: XLS-R đóng góp bao nhiêu so với back-end Nes2Net; WavLM có cải thiện robustness so với XLS-R không; augmentation codec có giảm gap trên ASVspoof 2021 DF và ASVspoof 5 không; score fusion có giữ được lợi thế của mô hình nhẹ mà vẫn giảm lỗi cross-domain không.
+
+Bước thứ ba là cân nhắc mở rộng benchmark sau khi verify nguồn chính thức và protocol. CodecFake/CodecFake+ phù hợp để kiểm tra neural codec attacks, MLAAD phù hợp cho cross-lingual evaluation, EchoFake phù hợp cho replay-aware deployment, còn PartialSpoof hoặc ADD phù hợp nếu bài toán được mở rộng sang localization hoặc partially fake detection. Các dataset này không nên được thêm đồng loạt; mỗi dataset cần đi kèm một câu hỏi thí nghiệm cụ thể để tránh mở rộng scope mà không tăng giá trị phân tích.
+
+Cuối cùng, luận văn tốt nghiệp có thể tập trung vào một hướng cải thiện đã được xác nhận ở Internship 2, chẳng hạn SSL front-end + lightweight robust back-end, codec-aware training, hoặc error-aware fusion. Mục tiêu không chỉ là giảm EER trên một benchmark đơn lẻ, mà là xây dựng một hệ thống có khả năng tổng quát hoá tốt hơn giữa clean benchmark, codec-compressed data, modern attacks và in-the-wild audio.

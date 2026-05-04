@@ -1,0 +1,46 @@
+﻿\chapter{Giới thiệu} \label{chap:intro}
+
+\section{Bối cảnh và động lực}
+
+Trong khoảng một thập kỷ trở lại đây, các kỹ thuật tổng hợp giọng nói (Text-to-Speech, TTS) và chuyển đổi giọng nói (Voice Conversion, VC) đã có những bước tiến vượt bậc. Từ các mô hình tự hồi tiếp như WaveNet và Tacotron đến các kiến trúc end-to-end hiện đại như VITS, neural codec TTS, hay các mô hình dựa trên diffusion, chất lượng giọng nói tổng hợp ngày càng tiệm cận với giọng nói thật về cả độ tự nhiên lẫn độ giống người nói gốc. Nhiều hệ thống thương mại hiện nay có thể nhân bản giọng nói từ chỉ vài giây mẫu âm thanh, mở ra nhiều ứng dụng tích cực như trợ lý ảo, đọc sách nói, hay khôi phục giọng cho người mất khả năng nói.
+
+Tuy nhiên, sự phát triển nhanh của các kỹ thuật này cũng kéo theo những rủi ro nghiêm trọng. Các vụ lừa đảo qua điện thoại bằng giọng nói giả mạo người thân, mạo danh lãnh đạo doanh nghiệp để lừa chuyển khoản, hay phát tán thông tin sai lệch bằng cách giả giọng nhân vật công chúng đã được ghi nhận tại nhiều quốc gia trong những năm gần đây. Rủi ro này càng đáng quan ngại khi các công cụ voice cloning ngày càng dễ tiếp cận và chi phí thấp.
+
+Trước thực trạng đó, bài toán phát hiện giọng nói giả mạo (Speech Deepfake Detection, SDD) trở thành một hướng nghiên cứu quan trọng. Ở dạng cơ bản nhất, bài toán được phát biểu như một tác vụ phân loại nhị phân: cho một đoạn audio đầu vào, hệ thống cần xác định đoạn đó là giọng thật (\textit{bonafide}) hay đã được tổng hợp/chỉnh sửa (\textit{spoof}). Đầu ra của hệ thống thường là một điểm số liên tục phản ánh xác suất \textit{bonafide}, từ đó có thể đưa ra quyết định phân loại bằng cách so sánh với một ngưỡng. Để đánh giá hệ thống, cộng đồng nghiên cứu thường sử dụng chỉ số Equal Error Rate (EER) -- tỉ lệ lỗi tại điểm cân bằng giữa False Acceptance Rate và False Rejection Rate, càng thấp càng tốt.
+
+\section{Các thách thức chính}
+
+Mặc dù đã có nhiều tiến bộ, các hệ thống SDD hiện nay vẫn đối mặt với một số thách thức cốt lõi.
+
+\textbf{Khả năng tổng quát hoá liên miền.} Nhiều mô hình được báo cáo có hiệu năng cao trên benchmark mà chúng được huấn luyện, ví dụ ASVspoof 2019 LA, nhưng EER tăng đáng kể khi được đánh giá trên dữ liệu có phân bố khác như audio đã qua nén lossy trong ASVspoof 2021 DF hoặc dữ liệu được thu thập từ mạng xã hội trong In-the-Wild. Hiện tượng này cho thấy nhiều mô hình đang học các đặc trưng phụ thuộc vào điều kiện thu âm hoặc artifact cụ thể của tập huấn luyện, thay vì các dấu hiệu tổng quát của giọng nói giả mạo.
+
+\textbf{Tốc độ tiến hoá của các kỹ thuật tấn công.} Các phương pháp TTS/VC mới liên tục xuất hiện, đặc biệt là các kiến trúc dựa trên neural codec, diffusion và adversarial training. Nhiều dataset benchmark được xây dựng cách đây vài năm có thể không bao gồm các loại tấn công mới nhất, dẫn đến rủi ro mô hình không nhận biết được các dạng tấn công mà nó chưa từng thấy. Việc đảm bảo các benchmark cập nhật kịp thời là một thách thức về mặt dữ liệu và quy trình đánh giá.
+
+\textbf{Điều kiện thực tế.} Audio trong thực tế thường đi kèm các yếu tố như nén lossy (MP3, AAC, OPUS), nhiễu nền, microphone chất lượng kém hoặc qua nhiều khâu xử lý hậu kỳ. Các yếu tố này có thể che lấp hoặc làm biến dạng các dấu vết phổ mà nhiều mô hình dựa vào để phát hiện giọng nói giả mạo. Vì vậy, các mô hình huấn luyện trên audio sạch trong phòng thí nghiệm thường suy giảm hiệu năng đáng kể khi áp dụng cho audio thực tế.
+
+\textbf{Mất cân bằng và đa dạng của dữ liệu.} Trong nhiều dataset, số lượng mẫu \textit{spoof} lớn hơn nhiều so với \textit{bonafide}; chẳng hạn ASVspoof 2019 LA có khoảng 7,3 nghìn mẫu \textit{bonafide} trên 64 nghìn mẫu \textit{spoof}. Đồng thời, độ đa dạng của \textit{bonafide} về người nói, ngôn ngữ và điều kiện thu âm thường hạn chế hơn. Điều này có thể ảnh hưởng đến khả năng học các đặc trưng tổng quát của giọng nói thật, đặc biệt khi áp dụng sang các tập dữ liệu cross-domain.
+
+\section{Hướng tiếp cận và cấu trúc báo cáo}
+
+Báo cáo này được thực hiện như bước khởi đầu trong một quy trình nghiên cứu dài hơi gồm Thực tập 2 và luận văn tốt nghiệp. Phạm vi của Thực tập 1 tập trung vào ba hoạt động chính: khảo sát cơ sở lý thuyết về dữ liệu, kiến trúc và phương pháp đánh giá; tái lập một số mô hình tiêu biểu trên các tập dữ liệu phổ biến để có số liệu tham chiếu thực tế; và phân tích lỗi sơ bộ trên một dataset trọng tâm, từ đó đưa ra đề xuất hướng tiếp cận ở mức ý niệm. Các đề xuất chi tiết về thiết kế thí nghiệm và triển khai thực tế sẽ được phát triển ở các giai đoạn tiếp theo.
+
+Cụ thể, báo cáo tái lập sáu mô hình đại diện cho các nhóm tiếp cận khác nhau gồm LFCC+LCNN, AASIST, AASIST-L, AASIST3, XLS-R+AASIST và XLS-R+Nes2Net trên bốn dataset phổ biến: ASVspoof 2019 LA, ASVspoof 2021 DF, ASVspoof 5 và In-the-Wild. Toàn bộ thí nghiệm được thực hiện trên nền tảng Kaggle với GPU P100/T4, sử dụng các checkpoint công bố công khai để đảm bảo tính khả lập. Phân tích lỗi sơ bộ được tập trung vào ASVspoof 5 -- tập dữ liệu mới nhất trong chuỗi ASVspoof Challenge với 32 loại tấn công và metadata về codec phong phú -- nhằm đưa ra cái nhìn cụ thể về điểm mạnh và điểm yếu của từng nhóm mô hình trong các kịch bản tấn công gần đây.
+
+\begin{figure}[H]
+    \centering
+    \begin{adjustbox}{width=\textwidth}
+    \begin{tabular}{c c c c c c c}
+        \fbox{\begin{minipage}{3.0cm}\centering Audio đầu vào\\\textit{bonafide}/\textit{spoof}\end{minipage}}
+        & $\longrightarrow$ &
+        \fbox{\begin{minipage}{3.0cm}\centering Front-end\\LFCC, waveform, SSL\end{minipage}}
+        & $\longrightarrow$ &
+        \fbox{\begin{minipage}{3.0cm}\centering Back-end\\LCNN, AASIST, Nes2Net\end{minipage}}
+        & $\longrightarrow$ &
+        \fbox{\begin{minipage}{3.0cm}\centering Score\\và quyết định\end{minipage}}
+    \end{tabular}
+    \end{adjustbox}
+    \caption{Quy trình tổng quát của hệ thống phát hiện giọng nói giả mạo.}
+    \label{fig:sdd-pipeline}
+\end{figure}
+
+Phần còn lại của báo cáo được tổ chức như sau. Chương \ref{chap:background} trình bày cơ sở lý thuyết, bao gồm phát biểu bài toán, các loại tấn công, các tập dữ liệu benchmark, các nhóm kiến trúc tiếp cận và phương pháp đánh giá. Chương \ref{chap:experiment} mô tả thiết lập thí nghiệm, trình bày kết quả EER tổng hợp trên sáu mô hình và bốn dataset, đồng thời phân tích lỗi sơ bộ trên ASVspoof 5. Chương \ref{chap:conclusion} tổng kết các phát hiện chính, đưa ra đề xuất hướng tiếp cận ở mức ý niệm và các bước phát triển tiếp theo trong khuôn khổ Internship 2 và luận văn.

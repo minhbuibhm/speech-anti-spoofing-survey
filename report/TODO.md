@@ -134,6 +134,30 @@ Quy ước:
   - Output: các cụm như "SOTA", "dominate", "robust hơn đáng kể", "hiện đại nhất" được thay bằng ngôn ngữ học thuật thận trọng hoặc có citation rõ.
   - Yêu cầu: phù hợp scope Internship 1 — literature survey + reproduce + preliminary diagnosis.
 
+- [x] **C18. Refresh literature review datasets theo nguồn 2024-2026**
+  - Output: `report/notes/datasets.md` và §2.2 trong `report.md` được cập nhật thêm các nhóm/dataset còn thiếu: ASVspoof 5 design/evaluation papers, MLAAD bản mới, CodecFake/CodecFake+, EchoFake, ADD 2022/2023, PartialSpoof.
+  - Yêu cầu: phân biệt rõ `reproduced benchmark` và `relevant but out-of-scope benchmark`; mỗi dataset ngoài scope phải có lý do không reproduce (lệch task, quá mới, chi phí lớn, thiếu protocol phù hợp, hoặc không phục vụ câu hỏi chính của Internship 1).
+
+- [x] **C19. Làm rõ lý do chọn/không chọn dataset trong §2.2**
+  - Output: Bảng dataset trong §2.2 có cột vai trò/lý do; sau bảng có đoạn tổng hợp giải thích vì sao 4 dataset reproduce là đủ cho mục tiêu hiện tại nhưng chưa bao trùm toàn bộ landscape.
+  - Yêu cầu: tránh viết như thể ASVspoof 2019/2021/5 + In-the-Wild là toàn bộ SDD; dùng wording "đại diện cho bốn stress test chính trong phạm vi báo cáo".
+
+- [x] **C20. Refresh literature review architectures theo taxonomy ít nhóm ở highest level**
+  - Output: `report/notes/architectures.md` được tổ chức lại theo vài nhóm lớn trước, trong mỗi nhóm mới chia nhánh nhỏ: (i) signal/task-specific supervised detectors, (ii) raw waveform/end-to-end detectors, (iii) SSL/foundation front-end + back-end, (iv) system-level robustness/fusion.
+  - Yêu cầu: không mở đầu bằng danh sách dài model; tên paper/model cụ thể chỉ xuất hiện sau khi đã giải thích nguyên lý của nhóm.
+
+- [x] **C21. Bổ sung các hướng architecture/paper nổi bật 2024-2026 vào §2.3**
+  - Output: §2.3 có nhắc rõ WavLM+MFA, WavLM back-ends/fusion trong ASVspoof 5, Nes2Net, AASIST3, codec-aware/CodecFake-aware training, Whisper-based approach ở mức emerging.
+  - Yêu cầu: giữ trọng tâm vào nhóm SSL + back-end vì liên quan trực tiếp đến 6 mô hình reproduce, nhưng không bỏ qua fusion/calibration và codec-aware training vì đây là đặc điểm của hệ thống mạnh gần đây.
+
+- [x] **C22. Thêm bảng paper/dataset đại diện vào literature review**
+  - Output: §2.2/§2.3 hoặc đoạn cuối §2.3 có bảng ngắn liệt kê paper/dataset/model đại diện, vai trò của chúng, và lý do có/không đưa vào reproduce.
+  - Yêu cầu: bảng phục vụ review nhanh, không biến Chương 2 thành bibliography dài.
+
+- [x] **C23. Cập nhật references Chương 2 cho các nguồn mới**
+  - Output: `Tài liệu tham khảo` có thêm ASVspoof 5 design/evaluation, ADD 2022/2023, PartialSpoof, CodecFake, CodecFake+, EchoFake, WavLM+MFA, WavLM back-ends, WavLM ensemble, Whisper+AASIST/Scalable AASIST nếu được nhắc trong body.
+  - Yêu cầu: ưu tiên paper gốc/arXiv/ISCA/IEEE; chỉ dùng nguồn dataset page khi paper chưa đủ thông tin.
+
 ---
 
 ## D. Chương 3 — Reproduce và phân tích kết quả
