@@ -15,7 +15,7 @@ Cấu trúc report:
 - Lời cam đoan / Lời ngỏ / Tóm tắt
 - Ch1 Giới thiệu — motivation, thách thức, cấu trúc báo cáo
 - Ch2 Cơ sở lý thuyết — datasets, attacks, metrics, architectures, challenges
-- Ch3 Reproduce và phân tích kết quả — setup, EER overview 4 datasets, error analysis ASV5 (placeholder)
+- Ch3 Reproduce và phân tích kết quả — setup, EER overview 4 datasets, error analysis ASV5
 - Ch4 Kết luận và Future work — đề xuất hướng tiếp cận ở dạng ý niệm
 
 Quy ước:
@@ -162,27 +162,26 @@ Quy ước:
 
 ## D. Chương 3 — Reproduce và phân tích kết quả
 
-- [ ] **D1. §3.1 Setup thí nghiệm**
+- [x] **D1. §3.1 Setup thí nghiệm**
   - Output: mô tả high-level cách reproduce: Kaggle (P100/T4), single notebook `survey.ipynb` per training/inference, các pretrained checkpoints lấy từ đâu (HuggingFace, repo gốc), datasets từ Kaggle public datasets nào.
   - Yêu cầu: KHÔNG đi quá low level (không paste code), tập trung vào reproducibility — người đọc cần biết "có thể chạy lại được" và "muốn mở rộng sang model/dataset mới thì làm sao".
   - Đề cập folder structure: `notebooks/eval_<dataset>.ipynb`, `results/<dataset>/results.pkl`, `results/checkpoints/`.
 
-- [ ] **D2. §3.2 Bảng EER tổng hợp 6 models × 4 datasets**
+- [x] **D2. §3.2 Bảng EER tổng hợp 6 models × 4 datasets**
   - Output: bảng markdown với rows = 6 models (AASIST, AASIST-L, AASIST3, LFCC+LCNN, XLS-R+AASIST, XLS-R+Nes2Net), cols = 4 datasets (ASV19 LA, ASV21 DF, ASV5, In-the-Wild).
-  - Số liệu: lấy trực tiếp từ `results/README.md` (đã có sẵn). Đánh dấu các ô "pending" (XLS-R+AASIST trên ASV21 và ITW).
+  - Số liệu: lấy trực tiếp từ `results/README.md` (đã có sẵn). Đánh dấu ô "pending" (XLS-R+AASIST trên ASV21 DF).
   - Sau bảng: 2-3 đoạn nhận xét high-level **theo phong cách mô tả số liệu, không kết luận mạnh**. Ví dụ: "kết quả ban đầu cho thấy xu hướng EER tăng từ ASV19 → ASV21/ASV5/ITW", "các model dùng SSL front-end (XLS-R) duy trì EER thấp hơn trên các dataset khó", "LFCC+LCNN có EER tăng đáng kể trên các điều kiện codec/in-the-wild". Tránh các từ như "sụp đổ", "tốt nhất", "thất bại" khi chưa có error analysis chi tiết.
 
-- [ ] **D3. §3.3 Phân tích EER theo từng dataset (overview)**
+- [x] **D3. §3.3 Phân tích EER theo từng dataset (overview)**
   - Output: mỗi dataset 1 đoạn ngắn (~100 từ): mô tả tính chất dataset → EER ranking → giải thích sơ bộ tại sao một số model fail.
   - Yêu cầu: giữ ở mức overview, không đi vào confusion matrix / score distribution — đó là việc của §3.4.
   - Source: `results/error_analysis/synthesis/eer_table.csv` + `results/README.md`.
 
-- [ ] **D4. §3.4 Error analysis trên ASVspoof 5 [PLACEHOLDER]**
-  - Output: header + ghi chú "kết quả sẽ được cập nhật sau khi hoàn thành evaluation đầy đủ trên ASV5 eval track + thêm model Nes2Net (no XLS-R)".
-  - Yêu cầu: viết placeholder kèm danh sách subsection dự kiến: §3.4.1 score distribution, §3.4.2 error theo attack type, §3.4.3 error theo codec, §3.4.4 confident errors, §3.4.5 cross-model failure overlap.
-  - Khi nào fill: sau khi user chạy xong eval track + Nes2Net standalone trên Kaggle.
+- [x] **D4. §3.4 Error analysis trên ASVspoof 5**
+  - Output: §3.4 đã được cập nhật bằng kết quả ASVspoof 5 Track 1 eval split (680,774 utterance) với phân tích score/EER, attack, codec, confident errors và failure overlap.
+  - Yêu cầu còn lại: nếu cần cô lập đóng góp của SSL front-end, vẫn nên bổ sung model Nes2Net không có XLS-R ở Internship 2 hoặc phần future work; không bắt buộc để hoàn thiện Ch3 Internship 1.
 
-- [ ] **D5. §3.5 Nhận xét cross-dataset (ngắn)**
+- [x] **D5. §3.5 Nhận xét cross-dataset (ngắn)**
   - Output: 1-2 đoạn mô tả generalization gap (EER delta giữa ASV19 và ITW/ASV5), nhận xét pattern theo phong cách quan sát: "các model dựa trên SSL front-end có gap nhỏ hơn", "model dùng hand-crafted feature có gap lớn hơn rõ rệt".
   - Yêu cầu: dùng ngôn ngữ mô tả số liệu, tránh kết luận tuyệt đối khi chưa có error analysis đầy đủ trên cả 4 datasets.
   - Source: `results/error_analysis/synthesis/generalization_gap.csv`.
@@ -195,7 +194,7 @@ Quy ước:
   - Output: 1 trang tóm tắt: đã survey gì, reproduce gì, phát hiện chính từ EER + error analysis sơ bộ.
 
 - [ ] **E2. §4.2 Đề xuất hướng tiếp cận (dạng ý niệm)**
-  - Output: dựa trên error analysis ASV5 (khi có), đề xuất 1-2 hướng improvement (ví dụ: codec augmentation, ensemble SSL+hand-crafted, fine-tune SSL trên multi-codec). Mỗi hướng: motivation từ error pattern, plan thử nghiệm cao cấp, expected outcome.
+  - Output: dựa trên error analysis ASV5 ở §3.4, đề xuất 1-2 hướng improvement (ví dụ: codec augmentation, ensemble SSL+hand-crafted, fine-tune SSL trên multi-codec). Mỗi hướng: motivation từ error pattern, plan thử nghiệm cao cấp, expected outcome.
   - Yêu cầu: ý niệm thôi, chi tiết sẽ ở Internship 2 (đề cương luận văn).
 
 - [ ] **E3. §4.3 Future work**
@@ -213,10 +212,10 @@ Quy ước:
 
 ## G. Việc chạy thực nghiệm song song (user thực hiện)
 
-- [!] **G1. Eval ASVspoof 5 trên eval track (đầy đủ codec)** — hiện đang dùng dev split.
-- [!] **G2. Train + eval Nes2Net (không XLS-R) trên ASV5** — để so sánh hiệu quả của SSL frontend.
-- [!] **G3. Eval XLS-R+AASIST trên ASV21 DF + In-the-Wild** — hiện đang pending.
-- [ ] **G4. Sau khi G1-G3 xong: chạy lại error analysis trên ASV5 → fill §3.4**.
+- [x] **G1. Eval ASVspoof 5 trên eval track (Track 1)** — đã có `results/asvspoof5/results.pkl` với 680,774 utterance và đủ 6 models.
+- [ ] **G2. Train + eval Nes2Net (không XLS-R) trên ASV5 [deferred]** — chuyển sang Internship 2 nếu muốn cô lập hiệu quả của SSL frontend; không còn chặn Ch3 Internship 1.
+- [!] **G3. Eval XLS-R+AASIST trên ASV21 DF** — ASV21 DF vẫn pending; In-the-Wild đã có kết quả 10.91% EER.
+- [x] **G4. Chạy lại error analysis trên ASV5 → fill §3.4** — đã có `results/error_analysis/asvspoof5/` và §3.4 đã được cập nhật.
 
 ---
 
@@ -226,8 +225,8 @@ Quy ước:
 2. B1, B2, B3 (Ch1 — không cần research nặng)
 3. C1, C2, C3 (research notes — có thể delegate cho Agent, song song)
 4. C4-C8 (Ch2 — chắt lọc từ notes)
-5. D1, D2, D3, D4 (placeholder), D5 (Ch3 — số liệu đã có)
-6. E1, E2 (placeholder cho đến khi G xong), E3
+5. D1, D2, D3, D4, D5 (Ch3 — số liệu ASV5 eval và error analysis đã có)
+6. E1, E2, E3
 7. F1 (cuối cùng)
 
 Mỗi lần load lại session, chỉ cần: "tiếp tục TODO `<id>` trong `report/TODO.md`".

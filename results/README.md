@@ -14,9 +14,9 @@ results/
 ├── asvspoof21/
 │   └── results.pkl                           # eval scores for 5 models on ASVspoof 2021 DF (XLS-R+AASIST pending)
 ├── asvspoof5/
-│   └── results.pkl                           # eval scores for 6 models on ASVspoof 5 (2024)
+│   └── results.pkl                           # eval scores for 6 models on ASVspoof 5 Track 1 eval
 ├── in_the_wild/
-│   └── results.pkl                           # eval scores for 5 models on In-the-Wild (XLS-R+AASIST pending)
+│   └── results.pkl                           # eval scores for 6 models on In-the-Wild
 ├── checkpoints/
 │   ├── lfcc_lcnn/
 │   │   ├── lfcc_lcnn.pth                     # trained weights (~407 KB)
@@ -105,22 +105,22 @@ Evaluation on **ASVspoof 2021 DF** eval set.
 ## `asvspoof5/results.pkl`
 
 Evaluation on **ASVspoof 5 (2024)** Track 1 eval set.
-- Total records: **140,950 utterances**
-- Breakdown: 31,334 bonafide + 109,616 spoof
+- Total records: **680,774 utterances**
+- Breakdown: 138,688 bonafide + 542,086 spoof
 - 6 models evaluated
 
 | Key | Model | EER (%) |
 |-----|-------|---------|
-| `AASIST` | End-to-end graph attention | 37.81 |
-| `AASIST-L` | Lightweight AASIST | 39.47 |
-| `AASIST3` | Wav2Vec2 + KAN + AASIST | 19.03 |
-| `LFCC+LCNN` | Hand-crafted features + CNN | 22.60 |
-| `XLS-R+AASIST` | XLS-R 300M + AASIST back-end | 2.55 |
-| `XLS-R+Nes2Net` | XLS-R 300M + Nes2Net-X back-end | 1.80 |
+| `AASIST` | End-to-end graph attention | 35.75 |
+| `AASIST-L` | Lightweight AASIST | 37.29 |
+| `AASIST3` | Wav2Vec2 + KAN + AASIST | 38.75 |
+| `LFCC+LCNN` | Hand-crafted features + CNN | 42.31 |
+| `XLS-R+AASIST` | XLS-R 300M + AASIST back-end | 19.60 |
+| `XLS-R+Nes2Net` | XLS-R 300M + Nes2Net-X back-end | 21.58 |
 
-> ASVspoof 5 is the hardest generalization test: attacks are more diverse and
-> include real-world codec/compression conditions. AASIST and AASIST-L degrade
-> severely (EER near 40%) while AASIST3's SSL front-end provides more robustness.
+> ASVspoof 5 Track 1 eval is the hardest modern-attack benchmark in this survey.
+> All systems degrade relative to ASVspoof 2019 LA. The XLS-R based systems remain
+> lower than the non-SSL systems, but still reach roughly 20% EER.
 
 ---
 
@@ -130,7 +130,7 @@ Evaluation on **In-the-Wild** (Müller et al., 2022 — "Does Audio Deepfake Det
 - Total records: **31,779 utterances**
 - Breakdown: 19,963 bonafide + 11,816 spoof
 - 58 speakers (celebrities and politicians)
-- 5 models evaluated, 1 pending
+- 6 models evaluated
 
 Note: the public dataset distribution is 19,963 real/genuine files and 11,816 fake/spoof files.
 If a local pickle reports the reverse under `labels`, that pickle was produced with inverted
@@ -142,7 +142,7 @@ In-the-Wild label IDs and should be regenerated before using label-dependent met
 | `AASIST-L` | Lightweight AASIST | 45.28 |
 | `AASIST3` | Wav2Vec2 + KAN + AASIST | 40.12 |
 | `LFCC+LCNN` | Hand-crafted features + CNN | 70.23 |
-| `XLS-R+AASIST` | XLS-R 300M + AASIST back-end | pending |
+| `XLS-R+AASIST` | XLS-R 300M + AASIST back-end | 10.91 |
 | `XLS-R+Nes2Net` | XLS-R 300M + Nes2Net-X back-end | 5.57 |
 
 > In-the-Wild is the primary cross-domain generalization probe: audio scraped from
