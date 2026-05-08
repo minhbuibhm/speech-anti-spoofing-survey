@@ -81,7 +81,7 @@ Speech Deepfake Detection
 
 **Cách hoạt động:** Đây không phải một architecture đơn lẻ, mà là tầng thực hành giúp hệ thống generalize tốt hơn: codec/noise/reverb augmentation, training trên CodecFake/CodecFake+ hoặc codec-resynthesized speech, score calibration, và score-level/feature-level fusion. ASVspoof 5 evaluation 2026 cho thấy nhiều hệ thống vẫn suy giảm dưới adversarial attacks và neural encoding/compression, nên robustness không thể chỉ giải quyết bằng việc đổi backbone.
 
-**Vai trò:** Nhóm này nên được trình bày sau ba nhóm model chính. Nó giải thích vì sao các hệ thống challenge thường là tổ hợp của SSL front-end, augmentation, calibration và fusion, thay vì một single backbone thuần. Trong report Internship 1, nhóm này chưa reproduce đầy đủ; nó là hướng trực tiếp cho Chương 4/Future work.
+**Vai trò:** Nhóm này nên được trình bày sau ba nhóm model chính. Nó giải thích vì sao các hệ thống challenge thường là tổ hợp của SSL front-end, augmentation, calibration và fusion, thay vì một single backbone thuần. Trong report Thực tập 1, nhóm này chưa reproduce đầy đủ; nó là hướng trực tiếp cho Chương 4/Future work.
 
 ---
 
@@ -95,37 +95,47 @@ Whisper-based detector, multi-task learning với ASR/speaker tasks và distilla
 
 ### 2.1 LFCC + LCNN
 
-**Kiến trúc:** LFCC (Linear Frequency Cepstral Coefficients) trích xuất vector 60 chiều (20 chiều tĩnh + delta + delta-delta) với frame 20ms, bước 10ms, FFT 512 điểm, 20 filter bank tuyến tính. Back-end là LCNN (Light Convolutional Neural Network) với Max Feature Map (MFM) activation, kiến trúc lấy cảm hứng từ VGG. **Paper gốc:** Sử dụng làm baseline trong ASVspoof 2019 challenge (Wang et al., 2020). **EER báo cáo trên ASV19 LA:** Baseline đạt khoảng 8.0% (B1, GMM) đến khoảng 4–5% với LCNN back-end; hệ thống kết hợp LFCC + LCNN-LSTM có thể đạt ~1.92% với P2SGrad loss. **Params:** khoảng 60K (LCNN). **Đặc điểm nổi bật:** Nhẹ nhất trong 6 model; là baseline chuẩn của ASVspoof challenges; dễ overfit vào spectral artifact của training attacks; EER tăng mạnh trên DF datasets do codec làm mất artifact.
+**Kiến trúc:** LFCC (Linear Frequency Cepstral Coefficients) trích xuất đặc trưng phổ tuyến tính theo frame, thường kèm delta và delta-delta, rồi đưa vào LCNN (Light Convolutional Neural Network) với Max Feature Map (MFM) activation. Đây là đại diện cho hướng hand-crafted acoustic feature + supervised classifier. **Paper/context:** LFCC-GMM và LFCC-LCNN là các baseline phổ biến trong ASVspoof 2019/2021; một số biến thể LCNN/LCNN-LSTM tốt hơn baseline GMM, nhưng không nên gọi LFCC+LCNN nói chung là SOTA nếu không nêu đúng variant và training recipe. **Params:** phụ thuộc implementation; nhìn chung nhỏ hơn rất nhiều so với SSL models, nhưng cần tránh khẳng định một con số cố định nếu chưa verify từ code project. **Đặc điểm nổi bật:** Rẻ nhất về compute, dễ train, phù hợp làm baseline. **Failure mode:** Nhạy với codec/compression, channel mismatch và unseen generator artifacts vì mô hình dễ học cue phổ cục bộ gắn với training distribution. Trong report, LFCC+LCNN nên được dùng như baseline truyền thống, không phải model đại diện cho best published performance.
 
 ---
 
 ### 2.2 AASIST
 
-**Kiến trúc:** End-to-end model nhận raw waveform. Dùng RawNet2-style encoder để trích xuất biểu diễn, sau đó xây dựng heterogeneous graph gồm hai nhánh: spectral graph và temporal graph. Một heterogeneous stacking graph attention layer (HS-GAL) kết hợp thông tin từ cả hai miền qua attention mechanism dị thể với stack node. **Paper gốc:** Jung et al., "AASIST: Audio Anti-Spoofing using Integrated Spectro-Temporal Graph Attention Networks," ICASSP 2022. **EER báo cáo trên ASV19 LA:** 0.83% (min t-DCF: 0.0275). **Params:** khoảng 297K. **Đặc điểm nổi bật:** Compact nhưng hiệu suất cao; single-system (không cần ensemble) đạt kết quả rất cạnh tranh tại thời điểm 2022; graph attention cho phép mô hình hóa mối quan hệ dài hạn trong cả spectral lẫn temporal domain.
+**Kiến trúc:** AASIST là end-to-end detector nhận raw waveform. Mô hình dùng RawNet2-style encoder để học representation ban đầu, sau đó xây dựng heterogeneous graph gồm spectral graph và temporal graph. Heterogeneous stacking graph attention layer (HS-GAL) kết hợp thông tin giữa hai miền bằng attention dị thể và stack node, nhằm phát hiện artifacts không chỉ nằm ở một frame hoặc một dải tần riêng lẻ mà có thể trải trên quan hệ spectro-temporal dài hơn. **Paper gốc:** Jung et al., "AASIST: Audio Anti-Spoofing using Integrated Spectro-Temporal Graph Attention Networks," ICASSP 2022. **Metric paper:** ASVspoof 2019 LA, 0.83% EER và 0.0275 min t-DCF cho best single system. **Params:** khoảng 297K. **Vai trò SOTA/former-SOTA:** Đây là former-SOTA compact single model trên ASVspoof 2019 LA, mạnh vì đạt performance cao mà không cần ensemble/score fusion. **Failure mode:** Không có large-scale speech pretraining; vẫn học chủ yếu từ labeled anti-spoofing data, nên có thể suy giảm khi gặp codec, in-the-wild audio, ASVspoof 5 modern attacks hoặc distribution khác ASVspoof 2019.
 
 ---
 
 ### 2.3 AASIST-L
 
-**Kiến trúc:** Phiên bản lightweight của AASIST, thu nhỏ số kênh và độ phức tạp của các graph attention layer. Kiến trúc tổng thể giữ nguyên thiết kế heterogeneous graph từ AASIST nhưng với capacity thấp hơn đáng kể. **Paper gốc:** Jung et al., ICASSP 2022 (cùng paper với AASIST). **EER báo cáo trên ASV19 LA:** 0.99% (min t-DCF: 0.0309). **Params:** 85,306 (~85K). **Đặc điểm nổi bật:** Cực kỳ nhỏ gọn — nhỏ hơn AASIST khoảng 3.5 lần nhưng chỉ mất khoảng 0.16% EER tuyệt đối; phù hợp cho edge deployment hoặc khi tài nguyên tính toán hạn chế.
+**Kiến trúc:** AASIST-L là phiên bản lightweight của AASIST, thu nhỏ số kênh và độ phức tạp của graph attention layers nhưng giữ ý tưởng heterogeneous spectro-temporal graph. **Paper/context:** Cùng paper ICASSP 2022 với AASIST. **Metric paper:** ASVspoof 2019 LA, 0.99% EER và 0.0309 min t-DCF. **Params:** 85,306, khoảng 85K. **Vai trò:** Đại diện cho hướng edge/constrained deployment: nhỏ hơn AASIST khoảng 3.5 lần nhưng chỉ kém 0.16 điểm EER tuyệt đối trên ASV19 LA paper. **Failure mode:** Capacity thấp hơn AASIST và có cùng rủi ro thiếu SSL prior; khi domain shift mạnh, lợi thế nhỏ gọn không đồng nghĩa robustness tốt.
 
 ---
 
 ### 2.4 AASIST3
 
-**Kiến trúc:** Mở rộng AASIST bằng cách tích hợp SSL front-end (Wav2Vec2) và back-end tăng cường bởi KAN (Kolmogorov-Arnold Networks). Pipeline gồm: (1) Wav2Vec2 encoder trích xuất SSL features từ raw audio; (2) KAN Bridge biến đổi và nén SSL features thông qua learnable activation functions; (3) Residual encoder + AASIST back-end phân loại. Ngoài ra, AASIST3 tích hợp pre-emphasis filtering và thêm regularization để tránh overfitting. **Paper gốc:** Borodin et al., "AASIST3: KAN-Enhanced AASIST Speech Deepfake Detection using SSL Features and Additional Regularization for the ASVspoof 2024 Challenge," arXiv 2408.17352, 2024. **Kết quả ASVspoof 2024:** minDCF 0.5357 (closed condition), 0.1414 (open condition). **Params:** khoảng 300M (dominated by Wav2Vec2 encoder). **Đặc điểm nổi bật:** Đưa KAN vào pipeline anti-spoofing; báo cáo cải thiện hơn 2 lần so với AASIST baseline trong điều kiện open của ASVspoof 2024; available trên HuggingFace (MTUCI/AASIST3).
+**Kiến trúc:** AASIST3 mở rộng AASIST bằng SSL front-end (Wav2Vec2), KAN bridge (Kolmogorov-Arnold Networks), residual encoder, pre-emphasis và regularization. Pipeline tổng quát gồm: SSL encoder trích xuất features từ waveform, KAN bridge biến đổi/nén high-dimensional SSL features, sau đó AASIST-style back-end phân loại. **Paper gốc:** Borodin et al., "AASIST3: KAN-Enhanced AASIST Speech Deepfake Detection using SSL Features and Additional Regularization for the ASVspoof 2024 Challenge," ASVspoof 2024 Workshop. **Metric paper:** ASVspoof 2024 minDCF 0.5357 trong closed condition và 0.1414 trong open condition. Đây là **minDCF**, không nên so trực tiếp với EER hoặc min t-DCF của ASVspoof 2019. **Params:** hàng trăm triệu nếu tính SSL front-end; compute dominated by Wav2Vec2. **Vai trò:** Đại diện cho ASVspoof 2024-context system dùng SSL + KAN, nhưng không nên gọi là SOTA rộng cho mọi benchmark. **Failure mode:** Phụ thuộc checkpoint/challenge condition; kết quả reproduce trong project cho thấy SSL front-end không tự động đảm bảo generalization nếu front-end/back-end/training không khớp domain.
 
 ---
 
 ### 2.5 XLS-R + AASIST (SSL-AASIST)
 
-**Kiến trúc:** Front-end là XLS-R 300M — phiên bản cross-lingual của wav2vec 2.0, được pre-train trên ~436K giờ audio đa ngôn ngữ (128 ngôn ngữ) theo Babu et al. (2022). Back-end là AASIST (cùng kiến trúc graph attention như §2.2). Trong quá trình fine-tune, XLS-R được tối ưu chung với AASIST back-end qua back-propagation trên ASVspoof 2019 LA training set. **Paper gốc:** Tak et al., "Automatic Speaker Verification Spoofing and Deepfake Detection Using wav2vec 2.0 and Data Augmentation," Odyssey 2022 (arXiv:2202.12233). **EER báo cáo:** Trên ASVspoof 2021 LA, hệ thống XLS-R+AASIST đạt EER ~0.82% — giảm ~82% tương đối so với baseline; trên ASVspoof 2021 DF, đạt khoảng 2.85% EER. **Params:** khoảng 300M (XLS-R 300M chiếm phần lớn). **Đặc điểm nổi bật:** Đây là một trong những hệ thống đầu tiên chứng minh giá trị của SSL front-end cho anti-spoofing; XLS-R được pre-train trên dữ liệu đa dạng giúp generalize tốt hơn AASIST thuần; vẫn gặp khó khăn trên heavily codec-compressed audio.
+**Kiến trúc:** Front-end là XLS-R 300M, phiên bản cross-lingual của wav2vec 2.0 được pre-train trên dữ liệu audio đa ngôn ngữ quy mô lớn. Back-end là AASIST, tận dụng graph attention đã được thiết kế cho anti-spoofing. Hệ thống có thể fine-tune SSL front-end cùng back-end hoặc dùng checkpoint đã công bố. **Paper gốc:** Tak et al., "Automatic Speaker Verification Spoofing and Deepfake Detection Using wav2vec 2.0 and Data Augmentation," Odyssey 2022. **Metric paper:** ASVspoof 2021 LA EER khoảng 0.82%; ASVspoof 2021 DF EER khoảng 2.85% trong setup có data augmentation. Đây là EER cho CM/deepfake detection, không phải t-DCF. **Params:** khoảng 300M+; XLS-R chiếm gần như toàn bộ tham số và FLOPs. **Vai trò SOTA/former-SOTA:** Một trong các evidence sớm và mạnh cho thấy SSL/foundation speech representation cải thiện anti-spoofing trên LA/DF, đặc biệt khi có codec/channel shift. **Failure mode:** Tốn VRAM, latency cao; vẫn có thể suy giảm với codec/attack ngoài training hoặc khi calibration/threshold không phù hợp.
 
 ---
 
 ### 2.6 XLS-R + Nes2Net (Nes2Net-X)
 
-**Kiến trúc:** Front-end là XLS-R 300M (tương tự §2.5). Back-end là Nes2Net-X — kiến trúc nested và lightweight, thiết kế để xử lý trực tiếp high-dimensional SSL features mà không cần dimensionality reduction layer. Nes2Net-X dùng concatenation + learnable weighted summation thay vì additive combination, cho phép mô hình ưu tiên các feature layers thông tin hơn. **Paper gốc:** Liu et al., "Nes2Net: A Lightweight Nested Architecture for Foundation Model Driven Speech Anti-spoofing," IEEE Transactions on Information Forensics and Security, 2025 (arXiv:2504.05657). **EER báo cáo:** ASVspoof 2021 LA: ~1.66% (best run), ~1.87% average; ASVspoof 2021 DF: ~1.49%; In-the-Wild: 5.52% (best run), 6.60% average. **Params:** Nes2Net-X back-end: khoảng 511K (chỉ tính back-end); tổng với XLS-R ~300M. **Đặc điểm nổi bật:** Nes2Net-X giảm 87% chi phí tính toán back-end so với baseline trong khi cải thiện 22% hiệu suất trong paper; kiến trúc nested multi-scale giúp tận dụng đa dạng layer của SSL front-end.
+**Kiến trúc:** Front-end là XLS-R 300M. Back-end là Nes2Net-X, một nested lightweight architecture được thiết kế để xử lý trực tiếp high-dimensional SSL features. Thay vì chỉ pooling một tầng SSL output, Nes2Net-X dùng cấu trúc nested/multi-scale, concatenation và learnable weighted summation để khai thác nhiều mức thông tin từ SSL representation. **Paper gốc:** Liu et al., "Nes2Net: A Lightweight Nested Architecture for Foundation Model Driven Speech Anti-spoofing," IEEE TIFS 2025 / arXiv:2504.05657. **Metric paper:** báo cáo kết quả mạnh trên ASVspoof 2021 LA/DF và In-the-Wild; các số thường được trích gồm ASVspoof 2021 LA khoảng 1.66% EER best run, ASVspoof 2021 DF khoảng 1.49% EER, In-the-Wild 5.52% best / 6.60% average. Cần lock lại từ PDF nếu đưa từng số vào report chính thức. **Params:** total vẫn khoảng 300M vì XLS-R dominates; Nes2Net-X back-end khoảng 0.5M. **Vai trò SOTA/former-SOTA:** Đại diện tốt cho hướng foundation front-end + lightweight anti-spoofing back-end. **Failure mode:** Backend nhẹ không xoá được bottleneck compute của XLS-R; nếu codec/attack quá khác domain, SSL front-end vẫn có thể tạo EER cao như project quan sát trên ASVspoof 5.
+
+---
+
+### 2.7 Hai SOTA/former-SOTA nên viết sâu trong report
+
+**AASIST / AASIST-L** nên được chọn làm former-SOTA compact family. Lý do: paper ICASSP 2022 báo cáo AASIST đạt 0.83% EER và 0.0275 min t-DCF trên ASVspoof 2019 LA với khoảng 297K tham số, còn AASIST-L đạt 0.99% EER và 0.0309 min t-DCF với khoảng 85K tham số. Đây là evidence rõ cho một single compact countermeasure không cần ensemble. Khi viết report, cần nhấn mạnh context: former-SOTA trên ASVspoof 2019 LA, không phải đảm bảo robust trên ASVspoof 5 hoặc In-the-Wild.
+
+**XLS-R + Nes2Net-X** nên được chọn làm đại diện SOTA/former-SOTA cho nhóm SSL/foundation front-end + lightweight back-end. Lý do: nó trực tiếp nằm trong 6 model reproduce, thể hiện trade-off hiện đại giữa representation mạnh và back-end gọn, đồng thời kết quả project cho thấy generalization tốt trên ASVspoof 2021 DF và In-the-Wild hơn nhóm không dùng SSL. Khi viết report, cần ghi rõ tổng hệ thống vẫn nặng vì XLS-R 300M; "lightweight" chủ yếu nói về back-end, không phải toàn pipeline. Có thể nhắc **XLS-R + AASIST** như mốc SSL-AASIST sớm của Tak et al. chứng minh giá trị của wav2vec2/XLS-R front-end cho ASVspoof 2021 LA/DF.
+
+**AASIST3** nên được mô tả là ASVspoof 2024 challenge-context system dùng Wav2Vec2 + KAN + AASIST, không chọn làm SOTA chính cho report nếu mục tiêu là general SDD benchmark. Metric paper của AASIST3 là minDCF trong ASVspoof 2024 closed/open condition, nên phải tách khỏi EER của project.
 
 ---
 
@@ -157,26 +167,26 @@ Kể từ ASVspoof 2021, nhiều hệ thống dựa trên SSL front-end đạt k
 
 | Nhóm | Params (typical) | Inference cost | Generalization |
 |------|-----------------|---------------|----------------|
-| Hand-crafted + LCNN | ~60K | Thấp | Kém (codec-sensitive) |
+| Hand-crafted + LCNN | Nhỏ, tuỳ implementation | Thấp | Kém đến trung bình; codec-sensitive |
 | End-to-end (AASIST) | ~297K | Rất thấp | Trung bình |
 | SSL + AASIST | ~300M | Cao (GPU) | Tốt |
-| SSL + Nes2Net-X | ~300M | Cao, back-end nhẹ | Tốt–Rất tốt |
+| SSL + Nes2Net-X | ~300M total; ~0.5M back-end | Cao do XLS-R, back-end nhẹ | Tốt–Rất tốt trên ASV21/ITW; ASV5 vẫn khó |
 | Ensemble/fusion | N×system | Rất cao | Thường tốt trong challenge, nhưng tốn inference và cần calibration |
 
 ---
 
 ## 4. Bảng So sánh 6 Model
 
-| Model | Front-end | Back-end | Params (approx.) | EER báo cáo (ASV19 LA) | Điểm mạnh | Điểm yếu |
-|-------|-----------|----------|------------------|----------------------|-----------|-----------|
-| LFCC + LCNN | LFCC (hand-crafted) | LCNN | ~60K | ~4–5% (LCNN); baseline | Nhẹ, huấn luyện nhanh | Yếu với codec, không generalize |
-| AASIST | Raw waveform | Het. Graph Attention | ~297K | **0.83%** | Compact, mạnh, không cần ensemble | Yếu hơn SSL trên DF/codec |
-| AASIST-L | Raw waveform | GAT (lightweight) | ~85K | **0.99%** | Cực nhẹ (~85K) | EER cao hơn AASIST, codec sensitivity |
-| AASIST3 | Wav2Vec2 | KAN + AASIST | ~300M | — (minDCF 0.1414 ASV24 open) | SSL prior + KAN flexibility | Rất nặng, phụ thuộc pretrain |
-| XLS-R + AASIST | XLS-R 300M | AASIST | ~300M | ~0.82% (ASV21 LA) | Generalization tốt trong các benchmark đã báo cáo | Nặng, cần fine-tune |
-| XLS-R + Nes2Net-X | XLS-R 300M | Nes2Net-X | ~300M (+511K back-end) | ~1.66% (ASV21 LA) | Back-end nhẹ, kết quả mạnh trên In-the-Wild trong paper | SSL front-end vẫn tốn kém |
+| Model | Front-end | Back-end | Params (approx.) | Paper metric đúng context | Vai trò | Failure mode chính |
+|-------|-----------|----------|------------------|---------------------------|---------|--------------------|
+| LFCC + LCNN | LFCC hand-crafted | LCNN/MFM | Nhỏ, tuỳ implementation | Baseline family trong ASVspoof; không cite như SOTA nếu không đúng variant | Baseline signal-processing truyền thống | Nhạy codec/compression, unseen artifacts, domain shift |
+| AASIST | Raw waveform | Integrated spectro-temporal heterogeneous graph attention | ~297K | ASVspoof 2019 LA: **0.83% EER**, **0.0275 min t-DCF** | Former-SOTA compact single system | Thiếu SSL prior; giảm khi domain/codec/attack thay đổi |
+| AASIST-L | Raw waveform | Lightweight AASIST | ~85K | ASVspoof 2019 LA: **0.99% EER**, **0.0309 min t-DCF** | Edge/compact representative | Capacity thấp hơn AASIST; cùng họ lỗi với AASIST |
+| AASIST3 | Wav2Vec2/SSL | KAN bridge + modified AASIST | Hàng trăm M nếu tính SSL | ASVspoof 2024: minDCF 0.5357 closed, 0.1414 open | Challenge-context SSL+KAN system | Không nên gọi SOTA rộng; phụ thuộc checkpoint/condition |
+| XLS-R + AASIST | XLS-R 300M | AASIST | ~300M+ | ASVspoof 2021 LA: ~0.82% EER; DF: ~2.85% EER | Early strong SSL-AASIST evidence | Nặng, tốn VRAM; vẫn cần threshold/calibration tốt |
+| XLS-R + Nes2Net-X | XLS-R 300M | Nes2Net-X nested backend | ~300M total; ~0.5M back-end | Strong reported results on ASVspoof 2021 and In-the-Wild; exact table nên verify từ PDF khi viết final | Modern SSL + lightweight back-end representative | Front-end vẫn là bottleneck; ASV5/codec khó vẫn gây EER cao |
 
-*Lưu ý: EER cho LFCC+LCNN trên ASV19 LA phụ thuộc vào cấu hình; LFCC+GMM baseline (B1) đạt ~8%; LCNN-LSTM với P2SGrad loss có thể đạt ~1.92%. Số liệu AASIST, AASIST-L lấy từ Jung et al. (ICASSP 2022). Số liệu XLS-R+AASIST trên ASVspoof 2021 LA từ Tak et al. (Odyssey 2022). Số liệu Nes2Net-X từ Liu et al. (IEEE TIFS 2025).*
+*Lưu ý metric: EER đo CM độc lập và là metric chính trong reproduce. Min t-DCF/t-DCF phụ thuộc ASV score và cost model, không so trực tiếp với EER. ASVspoof 5 Track 1 dùng minDCF làm primary challenge metric, còn project hiện dùng EER để so sánh nhất quán giữa bốn dataset.*
 
 ---
 

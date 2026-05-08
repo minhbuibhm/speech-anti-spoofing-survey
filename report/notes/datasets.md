@@ -67,7 +67,7 @@ Theo tính chất attack
 ├── Multi-attack (nhiều TTS + VC systems)
 │   ├── ASVspoof 2019 LA: 19 attacks (A01–A19)
 │   ├── ASVspoof 2021 DF: kế thừa ASV2019 + lossy codec processing
-│   ├── ASVspoof 5 (2024/2025): 32 attacks, crowdsourced speech, adversarial setting
+│   ├── ASVspoof 5 (2024/2025): database 32 attack algorithms; Track 1 eval có 16 attacks
 │   ├── WaveFake: 6 GAN-based TTS architectures
 │   ├── MLAAD v9: 140 TTS models, 51 ngôn ngữ
 │   ├── CodecFake/CodecFake+: neural codec / CoSG attacks
@@ -94,16 +94,17 @@ Theo tính chất attack
 
 ```
 Theo ngôn ngữ
-├── Mono-lingual (chủ yếu tiếng Anh)
-│   ├── ASVspoof 2019/2021 (tiếng Anh — VCTK corpus)
+├── English-centric / controlled English
+│   ├── ASVspoof 2019/2021 (tiếng Anh — VCTK/VCC-style sources)
+│   ├── ASVspoof 5 (MLS English partition, crowdsourced recording conditions)
 │   ├── In-the-Wild (đa phần tiếng Anh)
+│   └── FoR (tiếng Anh)
+├── Bilingual / limited multilingual
 │   └── WaveFake (tiếng Anh + tiếng Nhật)
 └── Multi-lingual
     ├── MLAAD (Multi-Language Audio Anti-Spoofing Dataset)
     │   ├── v9: 140 TTS models, 78 architectures, 51 languages
     │   └── Phù hợp cho nghiên cứu cross-lingual generalization
-    └── ASVspoof 5 (2024)
-        └── Mở rộng sang đa ngôn ngữ so với các phiên bản trước
 ```
 
 **Ưu điểm multi-lingual:** Cho phép kiểm tra xem mô hình học đặc trưng ngôn ngữ-độc-lập hay phụ thuộc ngôn ngữ. Quan trọng cho deployment toàn cầu.
@@ -116,15 +117,15 @@ Theo ngôn ngữ
 
 | Dataset | Năm | Ngôn ngữ | Kích thước (ước tính) | #Bonafide | #Spoof | #Attack types | Đặc điểm chính | Hạn chế |
 |---------|-----|----------|----------------------|-----------|--------|---------------|----------------|---------|
-| ASVspoof 2019 LA | 2019 | Tiếng Anh | ~73K utterances (train+dev+eval) | ~7.3K (eval) | ~64K (eval) | 19 (A01–A19, TTS+VC) | Clean lab, benchmark chuẩn, metadata đầy đủ | Không có codec processing; xa thực tế |
-| ASVspoof 2021 DF | 2021 | Tiếng Anh | ~611K utterances (eval) | — | — | Kế thừa ASV2019 + codec | Audio ASV2019 được re-encode qua 100+ codec configs | Ground truth label khó align; distribution shift |
-| ASVspoof 5 (2024/2025) | 2024 | Đa ngôn ngữ | project dùng 680,774 utterances eval Track 1 | 138,688 (eval) | 542,086 (eval) | 32 algorithms | Crowdsourced speech, 32 attacks, surrogate/adversarial setting, neural encoding/compression được phân tích trong paper 2026 | Dataset lớn, cần phân biệt Track 1 CM và Track 2 SASV |
-| In-the-Wild | 2022 | Chủ yếu tiếng Anh | ~38.6K utterances (ước tính) | ~19.9K | ~18.7K | Không rõ (scraped) | Scraped mạng xã hội, 58 speakers, điều kiện thực tế | Ground truth bất định, attack type không xác định |
+| ASVspoof 2019 LA | 2019 | Tiếng Anh | project dùng eval split 71,237 utterances | 7,355 (eval) | 63,882 (eval) | 19 attacks (A01–A19, TTS+VC) | Clean benchmark trên nền VCTK; train/dev/eval attack-disjoint; metadata attack rõ | Không có codec/post-processing phức tạp; attack generation cũ hơn neural codec/diffusion hiện nay |
+| ASVspoof 2021 DF | 2021 | Tiếng Anh | project dùng eval subset 458,868 utterances | 16,977 | 441,891 | TTS/VC + codec/compression; official DF release có metadata riêng | Speech deepfake task không gắn ASV; audio được xử lý qua nhiều codec/bitrate để kiểm tra robustness | Cần ghi rõ project subset; không đồng nhất mặc định với mọi official/full protocol |
+| ASVspoof 5 Track 1 | 2024/2025 | Tiếng Anh (MLS English partition) | project dùng Track 1 eval 680,774 utterances | 138,688 (eval) | 542,086 (eval) | Database có 32 attack algorithms; Track 1 eval có 16 attacks | Crowdsourced speech từ nhiều speaker/recording condition; legacy + contemporary TTS/VC; surrogate/adversarial setting; metadata codec/encoding | Dataset lớn; cần phân biệt Track 1 CM và Track 2 SASV; không nên gọi là multilingual trong setup này |
+| In-the-Wild | 2022 | Chủ yếu tiếng Anh | 31,779 utterances | 19,963 | 11,816 | Không rõ chi tiết từng generator (scraped/public-source deepfakes) | 58 public figures; 20.8h bonafide và 17.2h spoofed audio; điều kiện nguồn/codec/channel thực tế | Có thể có label/source noise; thiếu metadata attack type để phân tích theo mechanism |
 | MLAAD v9 | 2024/2026 | Đa ngôn ngữ (51) | 678.3h synthetic voice theo arXiv v9 | — | — | 140 TTS models / 78 architectures | Dataset multi-lingual mạnh nhất để kiểm tra cross-lingual generalization | Chủ yếu TTS; cần ghép bonafide tương ứng để tạo balanced setup |
 | FoR (Fake-or-Real) | 2019 | Tiếng Anh | ~198K utterances | ~87K | ~111K | 7 TTS systems | Cân bằng bonafide/spoof, đơn giản | Attack type cũ, không còn đại diện cho các tấn công hiện nay |
 | WaveFake | 2021 | Tiếng Anh + Nhật | ~104K utterances | ~27K | ~77K | 6 GAN-based vocoders | Tập trung vocoder artifacts | Chỉ TTS (không có VC), attack type giới hạn |
 | CodecFake | 2024 | Anh/Trung (tuỳ split) | 707K+ rows trên HF mirror | — | — | Codec-based TTS/CoSG | Dataset đầu tiên nhắm vào codec-based deepfake audio; cho thấy detector train trên dataset truyền thống kém với CoSG | Rất chuyên biệt cho neural codec; chưa phải challenge canonical |
-| CodecFake+ | 2025 | Nhiều nguồn | training qua 31 codec models, eval từ 17 CoSG models | — | — | 31 codec / 17 CoSG | Mở rộng lớn cho neural codec taxonomy và CodecFake detection | Work-in-progress, chi phí lớn, chưa cần cho Internship 1 |
+| CodecFake+ | 2025 | Nhiều nguồn | training qua 31 codec models, eval từ 17 CoSG models | — | — | 31 codec / 17 CoSG | Mở rộng lớn cho neural codec taxonomy và CodecFake detection | Work-in-progress, chi phí lớn, chưa cần cho Thực tập 1 |
 | EchoFake | 2025 | Tiếng Anh | >120h audio, >13K speakers | — | — | Zero-shot TTS + physical replay | Replay-aware practical SDD, kết hợp synthetic + replay dưới device/environment đa dạng | Preprint mới; lệch khỏi LA-only evaluation hiện tại |
 | ADD 2022/2023 | 2022/2023 | Mandarin-heavy | nhiều track challenge | — | — | Low-quality, partial fake, fake game, algorithm recognition | Mở rộng task ngoài binary utterance-level detection | Lệch scope report hiện tại; protocol theo challenge riêng |
 | PartialSpoof | 2021/2022 | Anh | dựa trên ASVspoof 2019 LA | — | — | Partially spoofed segments | Benchmark điển hình cho partial/segment-level spoof detection | Cần segment-level labels/metrics, không khớp pipeline EER utterance-level hiện tại |
@@ -137,19 +138,27 @@ Theo ngôn ngữ
 
 ### 3.1 ASVspoof 2019 LA
 
-ASVspoof 2019 LA (Logical Access) được giới thiệu trong khuôn khổ ASVspoof Challenge 2019 (Wang et al., 2020) và nhanh chóng trở thành benchmark chuẩn cho nghiên cứu SDD. Dataset được xây dựng trên VCTK corpus với giọng nói tiếng Anh từ các speaker khác nhau. Tập eval bao gồm khoảng 71,237 utterance (theo số liệu từ dự án này), trong đó 19 loại attack (A01–A19) bao gồm nhiều hệ thống TTS và VC từ thống kê truyền thống (HMM, GMM) đến neural (WaveNet-based). Điểm mạnh lớn nhất của ASVspoof 2019 LA là điều kiện thu âm sạch (lab-recorded), metadata chi tiết về attack type cho từng utterance, và sự nhất quán về cách tính EER — điều này cho phép so sánh công bằng giữa các mô hình. Tuy nhiên, chính sự "sạch" này cũng là hạn chế: không có codec processing, không có nhiễu môi trường, và tập attack bao gồm nhiều hệ thống TTS từ năm 2018–2019, không còn đại diện cho các tấn công neural codec/diffusion gần đây. Trong dự án này, ASVspoof 2019 LA đóng vai trò benchmark baseline để đo "điểm khởi đầu" trước khi kiểm tra khả năng tổng quát hóa sang các tập khó hơn.
+ASVspoof 2019 LA (Logical Access) được giới thiệu trong khuôn khổ ASVspoof Challenge 2019 (Wang et al., 2020) và nhanh chóng trở thành benchmark chuẩn cho nghiên cứu SDD. Dataset được xây dựng trên VCTK corpus với giọng nói tiếng Anh; các spoofed utterances được tạo bằng nhiều hệ thống TTS và VC. Cần phân biệt rõ split: 71,237 utterance là **eval split** được dùng trong project, gồm 7,355 bonafide và 63,882 spoof, không phải toàn bộ LA dataset. Official LA protocol có train/dev/eval tương ứng 25,380 / 24,844 / 71,237 utterance; trong đó train gồm 2,580 bonafide / 22,800 spoof và dev gồm 2,548 bonafide / 22,296 spoof. Eval split chứa 19 attack IDs (A01–A19), với metadata attack rõ để phân tích theo TTS/VC system.
+
+Điểm mạnh lớn nhất của ASVspoof 2019 LA là điều kiện thu âm sạch, protocol rõ, attack metadata đầy đủ và cách tính metric chuẩn hoá. Vì vậy nó phù hợp làm benchmark baseline và điểm xuất phát để đo generalization gap. Hạn chế cũng đến từ chính thiết kế này: dữ liệu không có codec/post-processing phức tạp, không phản ánh nhiều điều kiện channel thực tế, và các attack generation system chủ yếu thuộc thế hệ trước neural codec/diffusion hiện đại. Do đó EER thấp trên ASVspoof 2019 LA chỉ chứng minh mô hình hoạt động tốt trên clean benchmark, chưa đủ để kết luận robustness ngoài domain.
 
 ### 3.2 ASVspoof 2021 DF
 
-ASVspoof 2021 DF (Deepfake) (Yamagishi et al., 2021) được thiết kế đặc biệt để mô phỏng kịch bản audio đã qua codec lossy — điều kiện thường gặp khi audio lan truyền qua mạng xã hội hoặc hệ thống điện thoại. Về bản chất, audio nguồn lấy từ cùng TTS/VC systems như ASVspoof 2019 LA, nhưng được re-encode qua hơn 100 cấu hình codec khác nhau (MP3, AAC, OPUS, v.v. ở nhiều bitrate), tạo ra phân bố audio gần thực tế hơn đáng kể. Tập eval ước tính có khoảng 611,829 utterance, là challenge dataset lớn nhất trong các phiên bản ASVspoof. Thách thức cốt lõi của ASVspoof 2021 DF là nén lossy phá hủy các spectral artifact đặc trưng của TTS — thứ mà nhiều mô hình như AASIST hay LFCC+LCNN dựa vào — dẫn đến EER tăng mạnh. Trong dự án này, chênh lệch EER giữa ASVspoof 2019 LA và ASVspoof 2021 DF được quan sát rõ nhất ở LFCC+LCNN (+14 pp) và AASIST (+13 pp), trong khi XLS-R+Nes2Net chỉ tăng khoảng +2.5 pp. Hạn chế của dataset: vì bản chất là "augmentation codec" của ASV2019, nên diversity về attack type không cao hơn; cũng khó align utt_id chính xác do quá trình re-encoding.
+ASVspoof 2021 DF (Deepfake) được thiết kế cho speech deepfake detection không gắn trực tiếp với ASV enrollment/trial như LA/PA. Mục tiêu chính là kiểm tra khả năng phát hiện deepfake speech trong điều kiện audio đã qua codec/compression, tương tự audio được lưu trữ hoặc lan truyền qua media/news/social platforms. Official ASVspoof 2021 phát hành riêng DF speech data, evaluation keys và metadata; project hiện tại dùng một eval subset/protocol gồm 458,868 utterance, trong đó 16,977 bonafide và 441,891 spoof. Vì vậy trong report cần ghi rõ đây là **subset được project đánh giá**, không dùng con số này như mô tả tuyệt đối cho mọi official/full release.
+
+Về threat model, ASVspoof 2021 DF giữ trọng tâm vào TTS/VC deepfake nhưng thêm biến thiên codec/bitrate, làm mờ hoặc phá vỡ các spectral artifacts mà detector học được từ clean ASVspoof 2019 LA. Dataset này vì vậy là stress test trực tiếp cho codec robustness. Trong project, EER của LFCC+LCNN và AASIST tăng mạnh khi chuyển từ ASVspoof 2019 LA sang ASVspoof 2021 DF, trong khi XLS-R+Nes2Net tăng nhẹ hơn. Hạn chế chính là cần cẩn thận khi align metadata/utt_id giữa các nguồn và khi so sánh số lượng mẫu, vì official release, keys và project subset có thể không cùng phạm vi.
 
 ### 3.3 ASVspoof 5 (2024)
 
-ASVspoof 5 (Wang et al., 2024/2025) là phiên bản mới nhất của chuỗi ASVspoof Challenge, với nhiều cải tiến quan trọng so với các phiên bản trước. Dataset bao gồm 32 attack algorithms, trong đó có nhiều hệ thống TTS/VC thế hệ mới dựa trên neural codec, diffusion model, và các kỹ thuật VC hiện đại. Đặc biệt, ASVspoof 5 lần đầu tiên tích hợp adversarial setting và Track 2 SASV, nơi bài toán không còn là CM độc lập đơn thuần. Trong dự án này, Track 1 eval split với 680,774 utterance được sử dụng cho evaluation; kết quả cho thấy EER trên ASVspoof 5 cao hơn đáng kể so với ASVspoof 2019 LA với toàn bộ mô hình. Hạn chế: kích thước lớn đòi hỏi tài nguyên tính toán cao; Track 2/adversarial setting đòi hỏi cách đánh giá khác CM score đơn thuần.
+ASVspoof 5 (Wang et al., 2024/2025) là benchmark hiện đại hơn các phiên bản trước nhờ sử dụng dữ liệu crowdsourced từ **MLS English partition**, với số speaker lớn hơn và điều kiện thu đa dạng hơn studio-style corpora. Vì nguồn dùng trong ASVspoof 5 là English partition, không nên mô tả dataset reproduce này là multi-lingual, dù MLS bản đầy đủ là Multilingual LibriSpeech. Database có 32 attack algorithms trên toàn bộ thiết kế, bao gồm legacy và contemporary TTS/VC, các attack được tối ưu ở mức độ khác nhau bằng surrogate detection models, và adversarial attacks được đưa vào lần đầu trong chuỗi ASVspoof.
+
+Trong project, phần được đánh giá là **Track 1 eval** cho stand-alone countermeasure/deepfake detection, gồm 680,774 utterance với 138,688 bonafide và 542,086 spoof. Track 1 eval chứa 16 attacks; do đó không nên viết rằng eval split có 32 attacks. Theo thống kê challenge, train/dev dùng 8 attacks mỗi split, còn eval Track 1/Track 2 dùng 16 attacks. Track 2 SASV có cấu trúc trial và metric khác, không nằm trong pipeline hiện tại nếu chỉ dùng CM scores và labels. ASVspoof 5 là trọng tâm error analysis vì metadata codec/encoding và attack cho phép phân tích failure mode hiện đại; tuy nhiên kết luận trong Thực tập 1 chỉ nên hiểu là preliminary diagnosis trên sáu checkpoint hiện có, chưa đại diện đầy đủ cho Track 2 hoặc mọi operating metric của challenge.
 
 ### 3.4 In-the-Wild (Müller et al., 2022)
 
-In-the-Wild dataset (Müller et al., 2022) được thu thập bằng cách scraping các đoạn audio từ mạng xã hội, YouTube, và các nền tảng công cộng khác, với mục tiêu phản ánh phân bố audio thực tế mà các hệ thống SDD sẽ gặp khi triển khai. Dataset bao gồm 58 speaker, trong đó có nhiều nhân vật công chúng (chính trị gia, diễn viên, v.v.) và các giọng nói giả mạo tương ứng được tạo ra hoặc thu thập từ internet. Với khoảng 31,779 utterance trong dự án này, dataset cho thấy EER cao nhất cho hầu hết các mô hình — đặc biệt LFCC+LCNN lên tới 70.2% và AASIST 41.8% — phản ánh domain shift nghiêm trọng. Điểm đáng chú ý là các mô hình XLS-R thấp hơn rõ rệt trên tập này (XLS-R+Nes2Net 5.6%, XLS-R+AASIST 10.9%), cho thấy SSL front-end có xu hướng học đặc trưng ít phụ thuộc domain hơn. Hạn chế: ground truth của In-the-Wild dựa trên việc xác minh thủ công và có thể có noise label; attack type không có metadata chi tiết, làm khó phân tích lỗi theo loại tấn công.
+In-the-Wild dataset (Müller et al., 2022) được thu thập từ các nguồn công khai như social networks và video streaming platforms, với mục tiêu phản ánh phân bố audio thực tế mà detector có thể gặp khi triển khai. Official dataset gồm 58 public figures, 31,779 utterance, trong đó 19,963 bonafide và 11,816 spoof. Tính theo thời lượng, dataset có 20.8 giờ bonafide và 17.2 giờ spoofed audio, trung bình khoảng 23 phút bonafide và 18 phút spoof cho mỗi speaker.
+
+In-the-Wild khác ASVspoof ở chỗ nó không kiểm soát chặt attack generator và không cung cấp attack metadata chi tiết cho từng mẫu. Điểm mạnh là phản ánh real-world condition: codec/channel/noise không đồng nhất, nguồn audio đa dạng, speaker distribution khác training data và có khả năng chứa post-processing từ nền tảng công khai. Điểm yếu cũng nằm ở đây: ground truth có thể chịu ảnh hưởng của quá trình xác minh thủ công hoặc nguồn công khai, và thiếu metadata khiến khó phân tích lỗi theo attack mechanism. Trong project, dataset này đóng vai trò probe cho cross-domain generalization, không phải benchmark để kết luận chi tiết về từng loại TTS/VC.
 
 ### 3.5 MLAAD (Multi-Language Audio Anti-Spoofing Dataset)
 
@@ -165,11 +174,11 @@ WaveFake (Frank và Schönherr, 2021) tập trung vào một phân khúc cụ th
 
 ### 3.8 EchoFake (2025)
 
-EchoFake (Zhang et al., 2025) là dataset replay-aware nhắm đến tình huống thực tế: audio synthetic từ zero-shot TTS được phát lại qua thiết bị vật lý và thu trong nhiều cấu hình device/environment. Paper công bố hơn 120 giờ audio từ hơn 13,000 speakers và chỉ ra detector train trên dataset synthetic sạch có thể suy giảm mạnh khi gặp replayed audio. EchoFake phù hợp cho Internship 2 nếu câu hỏi nghiên cứu mở rộng từ LA/DF sang practical deployment; trong Internship 1 chưa đưa vào reproduce vì pipeline hiện tại tập trung utterance-level LA/DF và chưa xử lý PA/replay metadata.
+EchoFake (Zhang et al., 2025) là dataset replay-aware nhắm đến tình huống thực tế: audio synthetic từ zero-shot TTS được phát lại qua thiết bị vật lý và thu trong nhiều cấu hình device/environment. Paper công bố hơn 120 giờ audio từ hơn 13,000 speakers và chỉ ra detector train trên dataset synthetic sạch có thể suy giảm mạnh khi gặp replayed audio. EchoFake phù hợp cho Thực tập 2 nếu câu hỏi nghiên cứu mở rộng từ LA/DF sang practical deployment; trong Thực tập 1 chưa đưa vào reproduce vì pipeline hiện tại tập trung utterance-level LA/DF và chưa xử lý PA/replay metadata.
 
 ### 3.9 CodecFake và CodecFake+
 
-CodecFake (Wu et al., 2024) và CodecFake+ (Chen et al., 2025) nhắm đến một khoảng trống mới: deepfake speech từ codec-based speech generation (CoSG), nơi audio được sinh từ discrete neural codec tokens thay vì pipeline vocoder truyền thống. CodecFake chứng minh các detector train trên dataset phổ biến như ASVspoof/WaveFake có thể kém hiệu quả với CoSG. CodecFake+ mở rộng đáng kể bằng cách dùng 31 open-source neural codec models để tạo training data và dùng web-sourced samples từ 17 CoSG models cho evaluation, đồng thời đề xuất taxonomy theo vector quantizer, auxiliary objectives và decoder types. Đây là nhóm dataset nên nhắc trong literature review vì liên quan trực tiếp đến "modern neural codec attacks"; chưa reproduce trong Internship 1 vì chi phí dữ liệu lớn và vì ASVspoof 5 đã đóng vai trò benchmark hiện đại chính trong pipeline hiện tại.
+CodecFake (Wu et al., 2024) và CodecFake+ (Chen et al., 2025) nhắm đến một khoảng trống mới: deepfake speech từ codec-based speech generation (CoSG), nơi audio được sinh từ discrete neural codec tokens thay vì pipeline vocoder truyền thống. CodecFake chứng minh các detector train trên dataset phổ biến như ASVspoof/WaveFake có thể kém hiệu quả với CoSG. CodecFake+ mở rộng đáng kể bằng cách dùng 31 open-source neural codec models để tạo training data và dùng web-sourced samples từ 17 CoSG models cho evaluation, đồng thời đề xuất taxonomy theo vector quantizer, auxiliary objectives và decoder types. Đây là nhóm dataset nên nhắc trong literature review vì liên quan trực tiếp đến "modern neural codec attacks"; chưa reproduce trong Thực tập 1 vì chi phí dữ liệu lớn và vì ASVspoof 5 đã đóng vai trò benchmark hiện đại chính trong pipeline hiện tại.
 
 ### 3.10 ADD 2022/2023
 
