@@ -351,7 +351,7 @@ Các phát hiện và giới hạn ở §3.6 sẽ trực tiếp định hình ba
 
 ### 3.7 Tóm tắt chương
 
-Chương 3 chuyển từ literature sang thực nghiệm với ba đóng góp đã nêu ở đầu chương: pipeline đánh giá thống nhất, cross-dataset benchmark sáu mô hình × bốn dataset, và phân tích lỗi diagnostic trên ASVspoof 5. §3.1 mô tả thiết lập trên Kaggle T4, sinh notebook eval từ template chung và lưu kết quả theo định dạng `results.pkl` thống nhất với khoá `__metadata__`; phân biệt rõ năm checkpoint pretrained (lấy từ literature) với LFCC+LCNN project-specific baseline (huấn luyện lại ~10 epoch). §3.2 trình bày bảng EER tổng hợp (Bảng 3.1) cùng bốn quan sát: dải EER trải rộng giữa các mô hình, *leaderboard inversion* giữa các dataset, khoảng cách giữa nhóm XLS-R 300M và phần còn lại nới rộng theo độ khó, và modern-attack robustness vẫn chưa được giải quyết. §3.3 phân tích EER theo từng dataset, làm rõ vai trò của ASVspoof 2019 LA (clean), ASVspoof 2021 DF (codec stress), ASVspoof 5 (modern attacks) và In-the-Wild (domain shift), kèm các caveat in-context (AASIST3 zero-shot, LFCC+LCNN project-baseline, label noise của ITW). §3.4 — phần phân tích lỗi sâu chính của báo cáo — bóc tách EER cao trên ASV5 thành các thành phần: phân phối điểm số, EER theo attack ID và attack tag, EER theo codec, confident errors (qualitative), và failure overlap + score correlation; phát hiện nổi bật là EER cao của nhóm XLS-R chủ yếu đến từ C04/C07 (`nocodec` chỉ 2.71-3.78%), trong khi attack tag AC1/AC2/AC3 gần đồng nhất ở mọi mô hình. §3.5 lượng hoá generalization gap so với ASVspoof 2019 LA (Bảng 3.2) và làm nổi rằng ASV21 DF không đại diện cho codec robustness thực tế: XLS-R + Nes2Net chỉ tăng +2.48 pp trên ASV21 DF nhưng +21.13 pp trên ASV5. §3.6 tổng hợp năm phát hiện chính (F1 codec dominance, F2 codec distribution shift, F3 attack family không phải bottleneck, F4 fusion signal qua failure overlap/correlation, F5 SSL front-end là điều kiện cần nhưng không đủ) và bảy giới hạn (LFCC project-specific, AASIST3 zero-shot, pretrained-only, EER mode theo nhóm, XLS-R+AASIST chưa xong ASV21 DF, label noise ITW, chưa có min t-DCF/Brier/Cllr/actual DCF), đồng thời ánh xạ trực tiếp các phát hiện tới ba hướng đề xuất sẽ được trình bày ở Chương 4: codec-aware training, score-level fusion có kiểm soát, và ablation tách đóng góp front-end/back-end.
+Chương 3 chuyển từ literature sang thực nghiệm với ba đóng góp đã nêu ở đầu chương: pipeline đánh giá thống nhất, cross-dataset benchmark sáu mô hình × bốn dataset, và phân tích lỗi diagnostic trên ASVspoof 5. §3.1 mô tả thiết lập trên Kaggle T4, sinh notebook eval từ template chung và lưu kết quả theo định dạng `results.pkl` thống nhất (khoá `__metadata__` cho các pkl mới); phân biệt rõ năm checkpoint pretrained (lấy từ literature) với LFCC+LCNN project-specific baseline (huấn luyện lại ~10 epoch). §3.2 trình bày bảng EER tổng hợp (Bảng 3.1) cùng bốn quan sát: dải EER trải rộng giữa các mô hình, *leaderboard inversion* giữa các dataset, khoảng cách giữa nhóm XLS-R 300M và phần còn lại nới rộng theo độ khó, và modern-attack robustness vẫn chưa được giải quyết. §3.3 phân tích EER theo từng dataset, làm rõ vai trò của ASVspoof 2019 LA (clean), ASVspoof 2021 DF (codec stress), ASVspoof 5 (modern attacks) và In-the-Wild (domain shift), kèm các caveat in-context (AASIST3 zero-shot, LFCC+LCNN project-baseline, label noise của ITW). §3.4 — phần phân tích lỗi sâu chính của báo cáo — bóc tách EER cao trên ASV5 thành các thành phần: phân phối điểm số, EER theo attack ID và attack tag, EER theo codec, confident errors (qualitative), và failure overlap + score correlation; phát hiện nổi bật là EER cao của nhóm XLS-R chủ yếu đến từ C04/C07 (`nocodec` chỉ 2.71-3.78%), trong khi attack tag AC1/AC2/AC3 gần đồng nhất ở mọi mô hình. §3.5 lượng hoá generalization gap so với ASVspoof 2019 LA (Bảng 3.2) và làm nổi rằng ASV21 DF không đại diện cho codec robustness thực tế: XLS-R + Nes2Net chỉ tăng +2.48 pp trên ASV21 DF nhưng +21.13 pp trên ASV5. §3.6 tổng hợp năm phát hiện chính (F1 codec dominance, F2 codec distribution shift, F3 attack family không phải bottleneck, F4 fusion signal qua failure overlap/correlation, F5 SSL front-end là điều kiện cần nhưng không đủ) và bảy giới hạn (LFCC project-specific, AASIST3 zero-shot, pretrained-only, EER mode theo nhóm, XLS-R+AASIST chưa xong ASV21 DF, label noise ITW, chưa có min t-DCF/Brier/Cllr/actual DCF), đồng thời ánh xạ trực tiếp các phát hiện tới ba hướng đề xuất sẽ được trình bày ở Chương 4: codec-aware training, score-level fusion có kiểm soát, và ablation tách đóng góp front-end/back-end.
 
 ---
 
@@ -359,15 +359,122 @@ Chương 3 chuyển từ literature sang thực nghiệm với ba đóng góp đ
 
 ### 4.1 Tóm tắt kết quả
 
-*[~1 trang tóm tắt: đã survey gì, reproduce được gì, các phát hiện ban đầu từ EER và error analysis sơ bộ.]*
+Báo cáo Thực tập 1 đã thực hiện ba khối công việc: (i) hệ thống hoá literature speech deepfake detection theo bốn trục — bài toán và metric, dataset, kiến trúc và thách thức (Chương 2); (ii) tái lập sáu mô hình đại diện (LFCC+LCNN, AASIST, AASIST-L, AASIST3, XLS-R+AASIST, XLS-R+Nes2Net) trên bốn dataset (ASVspoof 2019 LA, 2021 DF, 5 Track 1, In-the-Wild) qua một pipeline đánh giá thống nhất; và (iii) phân tích lỗi diagnostic trên ASVspoof 5 để bóc tách thành phần tạo nên EER cao của các mô hình hiện đại.
 
-### 4.2 Đề xuất hướng tiếp cận (mức ý niệm)
+Năm phát hiện chính (đã hệ thống ở §3.6) định hình hướng đề xuất:
 
-*[Dựa trên error analysis ASV5 ở §3.4, đề xuất 1-2 hướng cải thiện ở mức ý niệm. Mỗi hướng nêu motivation từ pattern lỗi quan sát được, kế hoạch thử nghiệm tổng quan, và kết quả kỳ vọng. Chi tiết cụ thể sẽ được trình bày trong Thực tập 2.]*
+- **F1, F3 — Codec là bottleneck chính trên ASV5**, không phải attack family. Hai mô hình XLS-R có EER trên subset `nocodec` chỉ 2.71-3.78% nhưng tăng lên 35-42% trên C04/C07; trong khi EER theo attack tag (AC1/AC2/AC3) gần đồng nhất.
+- **F2 — Codec coverage gap giữa ASV21 DF và ASV5.** Generalization gap của XLS-R+Nes2Net chỉ +2.48 pp trên ASV21 DF nhưng +21.13 pp trên ASV5; ASV21 DF không bao phủ đầy đủ codec/encoding conditions khó có trong ASV5. ASV21 DF vẫn là benchmark codec hợp lệ, nhưng không đủ một mình để đánh giá codec robustness deployment-grade.
+- **F4 — Failure overlap và score correlation thấp giữa các họ kiến trúc** gợi ý cơ hội fusion ở mức hệ thống.
+- **F5 — SSL front-end là điều kiện cần nhưng không đủ.** AASIST3 dùng Wav2Vec2 vẫn ở 38.75% trên ASV5; hai mô hình cùng XLS-R 300M front-end chênh nhau đáng kể tuỳ dataset.
+
+Ba phát hiện đầu (F1-F3) hội tụ về cùng một câu chuyện: ngay cả các mô hình mạnh nhất hiện nay vẫn thất bại có hệ thống ở các điều kiện codec không có trong huấn luyện, và bottleneck nằm ở training/representation distribution chứ không ở loại tấn công. Đây là motivation chính cho đề xuất ở §4.2.
+
+### 4.2 Đề xuất: Codec-aware fine-tuning với score-level consistency regularization
+
+**Tuyên bố đề xuất.** Báo cáo đề xuất một phương pháp huấn luyện codec-aware cho SSL-based speech deepfake detector, gồm hai thành phần kết hợp:
+
+1. **Codec-balanced data augmentation** ở mức waveform, dùng tập codec đa dạng và codec-balanced sampling.
+2. **Score-level codec consistency regularization** — auxiliary loss buộc decision không đổi giữa clean view và codec view của cùng một utterance.
+
+Backbone là XLS-R + Nes2Net-X, được chọn vì là baseline mạnh nhất tổng thể trên ASV19 LA, ASV21 DF và In-the-Wild trong Chương 3. Đánh giá chính dựa trên một metric headline duy nhất: **codec robustness gap** trên ASV5.
+
+#### 4.2.1 Động lực
+
+Kết quả §3 cho thấy ba điểm hội tụ về codec robustness:
+
+- **Vấn đề cụ thể, định lượng được:** trên ASV5 Track 1 eval, XLS-R + Nes2Net và XLS-R + AASIST có EER tổng 21.58% và 19.60%, với codec robustness gap (định nghĩa ở §4.2.4) khoảng 39 pp và 36 pp tương ứng. Phần lớn lỗi của các mô hình "tốt nhất" hiện tại nằm ở một vài codec.
+- **Khoảng trống của benchmark hiện tại:** ASV21 DF không bao phủ đầy đủ codec khó có trong ASV5; mô hình tốt trên ASV21 DF vẫn có thể thất bại nặng trên ASV5 (F2). Việc đánh giá codec robustness deployment cần hơn một benchmark.
+- **Bottleneck không chỉ nằm ở back-end:** EER gần đồng nhất theo attack tag (F3) cho thấy thay back-end đơn thuần (Nes2Net-X → Nes2Net-LA, XLSR-Mamba) có thể không đủ nếu không xử lý codec mismatch song song.
+
+Đồng thời, literature ở §2.3 cho thấy các kiến trúc 2024-2025 (Nes2Net-X, Nes2Net-LA, XLSR-Mamba) chủ yếu cải thiện thiết kế back-end trên benchmark sạch, ít công trình tập trung trực tiếp vào codec-aware training cho SSL-based detector. Codec augmentation đã xuất hiện rải rác trong các submission ASVspoof, nhưng (a) chi tiết thường không được công bố thống nhất, và (b) codec-consistency regularization cho SSL-based CM chưa được khảo sát có hệ thống. Đây là khoảng trống mà đề xuất nhắm đến.
+
+#### 4.2.2 Phương pháp
+
+**Backbone.** XLS-R 300M (partial unfreeze ở các transformer layer cuối) + Nes2Net-X back-end, lấy từ release của Liu et al. (2025) làm điểm khởi đầu và fine-tune theo các điều kiện huấn luyện ở §4.2.3.
+
+**Codec-balanced augmentation pipeline.** Với mỗi utterance huấn luyện $x$, sinh một phiên bản codec-augmented $x_c = \mathrm{codec}_k(x)$, trong đó $k$ được lấy mẫu từ tập codec tham chiếu $\mathcal{K}$ theo phân bố cân bằng (mỗi batch chứa hỗn hợp nhiều codec, không lệch về một codec đơn lẻ). Tập codec tham chiếu $\mathcal{K}$ bao gồm các codec phổ thông (MP3, AAC, Opus) ở nhiều bitrate, kèm các điều kiện narrowband và transcoding chain. Quan trọng: $\mathcal{K}$ được chia thành **train-codec set** $\mathcal{K}_{\text{tr}}$ và **held-out codec set** $\mathcal{K}_{\text{ho}}$ disjoint (xem §4.2.4).
+
+**Score-level codec consistency regularization (formulation chính).** Với cùng một utterance $x$, model sinh logit $z(x)$ và $z(x_c)$. Loss tổng:
+
+$$
+\mathcal{L} \;=\; \mathcal{L}_{\text{CM}}\big(z(x), y\big) \;+\; \mathcal{L}_{\text{CM}}\big(z(x_c), y\big) \;+\; \lambda \cdot \mathcal{L}_{\text{cons}}\big(z(x), z(x_c)\big)
+$$
+
+trong đó $\mathcal{L}_{\text{CM}}$ là binary cross-entropy chuẩn, và $\mathcal{L}_{\text{cons}}$ là *score-level consistency* — mặc định là MSE giữa hai logit, hoặc KL divergence giữa hai phân phối sigmoid. Hệ số $\lambda$ là hyper-parameter (sweep trên dev split). Diễn giải: ràng buộc *quyết định* không đổi sau codec, không ràng buộc embedding hay feature trung gian — tránh rủi ro xoá cue spoof do ép embedding-invariance quá mạnh.
+
+**Variant — supervised contrastive theo class (long-term).** Một biến thể chặt hơn về mặt formulation, dành cho future work: thay vì chỉ ràng buộc cặp $(x, x_c)$ cùng utterance, dùng supervised contrastive loss cross-utterance — kéo các view *bonafide* (gồm cả codec-augmented) lại gần nhau, tách khỏi cụm *spoof*; và ngược lại. Lưu ý: định nghĩa "within-class consistency" chỉ trên cặp $(x, x_c)$ cùng utterance sẽ trùng với β do cặp luôn cùng nhãn — vì vậy variant đúng đòi hỏi mở rộng cross-utterance, phức tạp hơn và được dời xuống §4.3.
+
+**Train data.** Phase chính dùng **ASVspoof 2019 LA train/dev** làm nguồn huấn luyện có kiểm soát; codec view được sinh on-the-fly hoặc pre-computed bằng augmentation pipeline ở trên. ASVspoof 2021 DF được giữ làm evaluation set cho codec robustness (vì challenge 2021 không phát hành DF training split công khai), trừ khi xác minh được một nguồn train-compatible riêng. Cả ba điều kiện huấn luyện B1/B2/B3 (§4.2.3) dùng *cùng* training source ASV19 LA, *cùng* số optimizer steps và *cùng* số utterance gốc, chỉ khác phần codec view và consistency loss. Lựa chọn này quan trọng để claim "codec-aware training là nguồn cải thiện" tách bạch khỏi các yếu tố nhiễu khác. ASV5 train/dev được dành cho phase 2 in-domain adaptation (optional).
+
+#### 4.2.3 Thiết kế thí nghiệm
+
+Bảng 4.1 liệt kê các điều kiện huấn luyện. B0 là baseline không fine-tune, lấy thẳng từ §3. MUST gồm 3 run B1/B2/B3 trên cùng backbone XLS-R + Nes2Net-X. SHOULD lặp lại B1-B3 với XLS-R + AASIST để trả lời F5 (codec-aware có giúp cả back-end khác không). COULD là các mở rộng tuỳ thời gian, gồm cả supervised contrastive variant và sweep front-end/back-end.
+
+**Bảng 4.1.** Các điều kiện huấn luyện trong proposal.
+
+| Điều kiện | Backbone | Augmentation | Consistency loss | Phạm vi |
+|-----------|----------|--------------|------------------|---------|
+| B0 | XLS-R + Nes2Net-X | — | — | Pretrained, đã có ở §3 |
+| B1 | XLS-R + Nes2Net-X | Không | Không | MUST — fine-tune control |
+| B2 | XLS-R + Nes2Net-X | Codec-balanced ($\mathcal{K}_{\text{tr}}$) | Không | MUST — augmentation only |
+| B3 | XLS-R + Nes2Net-X | Codec-balanced ($\mathcal{K}_{\text{tr}}$) | Score-level (β) | MUST — đề xuất chính |
+| B1'/B2'/B3' | XLS-R + AASIST | (như B1/B2/B3) | (như B1/B2/B3) | SHOULD — kiểm chứng F5 |
+| C* | WavLM front-end, Nes2Net-LA, XLSR-Mamba, supervised contrastive variant | (varies) | (varies) | COULD — extension |
+
+**So sánh kỳ vọng.** B1 đóng vai trò *fine-tune control* — không claim B1 vs B0 đo riêng "đóng góp của fine-tune" vì chuyển từ pretrained sang fine-tune đổi cả domain training và optimizer dynamics; B1 chỉ là baseline để các so sánh sau đứng được. B2 vs B1 đo đóng góp của codec augmentation; B3 vs B2 đo đóng góp của consistency regularization. Decomposition này tách rõ hai thành phần augmentation và consistency.
+
+**Fairness budget.** Để các so sánh B1 vs B2 vs B3 sạch về ngân sách huấn luyện: cùng số optimizer steps, cùng số utterance base (cùng tập ASV19 LA train), cùng learning rate schedule và cùng số seed. B2 không được "thắng" B1 chỉ vì thấy thêm augmented samples; vì vậy số *gradient updates* được giữ cố định, augmentation chỉ thay đổi nội dung của batch, không thay đổi số batch. B3 thêm consistency loss term nhưng không thêm utterance, để tách đóng góp của loss khỏi đóng góp của data.
+
+**Compute và infrastructure.** Toàn bộ MUST (3 run) được thiết kế để chạy trên Kaggle T4 với XLS-R partial unfreeze, gradient checkpointing và mixed precision. SHOULD cần thêm 3 run; nếu vượt budget, SHOULD chuyển sang COULD.
+
+#### 4.2.4 Evaluation protocol và metric headline
+
+**Codec robustness gap (CodecGap)** — metric headline, định nghĩa trên ASV5 Track 1 eval:
+
+$$
+\mathrm{CodecGap} \;=\; \frac{\mathrm{EER}(C04) + \mathrm{EER}(C07)}{2} \;-\; \mathrm{EER}(\texttt{nocodec})
+$$
+
+trong đó EER theo nhóm được tính bằng chế độ `spoof_group_vs_all_bonafide` (như §3.4). Lựa chọn mean(C04, C07) thay vì max ổn định hơn theo một codec đơn lẻ. Baseline B0 hiện tại với XLS-R + Nes2Net-X: EER(`nocodec`) = 2.71%, EER(C04) = 41.17%, EER(C07) = 42.32%, **CodecGap ≈ 39.0 pp**.
+
+**Success criterion.**
+- *Primary*: CodecGap của B3 giảm đáng kể so với B1 và B2 (so sánh có ý nghĩa qua nhiều seed).
+- *Target*: CodecGap < 25 pp.
+- *Stretch*: CodecGap < 20 pp.
+- *Regression check*: EER trên ASV19 LA và ASV21 DF không tăng quá +1 pp so với B1 (fine-tune control). Nếu vi phạm, claim "codec-aware training cải thiện không đánh đổi" không đứng vững.
+
+**Held-out codec evaluation.** Đưa vào MUST. Procedure: train với codec set $\mathcal{K}_{\text{tr}}$ (ví dụ MP3, AAC, Opus ở các bitrate đại diện); evaluate trên một dev split ASV19/ASV21 đã re-encode bằng codec set $\mathcal{K}_{\text{ho}}$ disjoint (ví dụ Vorbis, GSM, AMR-NB, Codec2, hoặc transcoding chain chưa thấy trong $\mathcal{K}_{\text{tr}}$). Báo cáo EER và CodecGap-style metric trên held-out codecs. Mục tiêu: chứng minh đề xuất cải thiện *unseen-codec* generalization, không chỉ trùng C04/C07. Đây là phần làm proposal defensible nhất về novelty.
+
+**Metric phụ trợ.**
+- EER tổng trên bốn dataset (ASV19 LA, ASV21 DF, ASV5 Track 1, ITW) — đo cải thiện chung và bắt regression.
+- Grouped EER theo codec đầy đủ (C00-C11) trên ASV5 — phân tích chi tiết.
+- ECE trên ASV5 — calibration phụ trợ; không phải success criterion chính nhưng được report.
+- Score correlation và failure overlap giữa B0 và B3 — kiểm tra đề xuất có làm thay đổi *cấu trúc lỗi* (motivation cho fusion ở §4.3) hay chỉ scale chung.
+
+#### 4.2.5 Rủi ro và biện pháp giảm thiểu
+
+- **Codec mô phỏng có thể không khớp C04/C07 thực.** ASV5 không công bố cấu hình codec đầy đủ. Biện pháp: held-out codec evaluation (§4.2.4) tách claim "codec-aware generalizes" ra khỏi "we matched C04/C07"; ngay cả khi không trùng, held-out metric vẫn cho kết quả khoa học hợp lệ.
+- **Consistency regularization có thể xoá cue spoof.** Biện pháp: chọn formulation score-level (β) thay vì embedding-level; sweep $\lambda$ kỹ trên dev; nếu B3 tệ hơn B2 trên ASV19 LA/ASV21 DF, hạ $\lambda$.
+- **Fine-tune gây catastrophic forgetting trên ASV19/ITW.** Biện pháp: low learning rate cho XLS-R (partial unfreeze chỉ vài layer cuối), early stopping theo dev EER; regression check ở §4.2.4 bắt vấn đề này định lượng.
+- **Compute trên Kaggle T4 hạn chế.** XLS-R 300M fine-tune cần tối ưu bộ nhớ. Biện pháp: gradient checkpointing, mixed precision, batch nhỏ + grad accumulation; nếu vẫn không đủ, giảm scope SHOULD trước, MUST sau.
+- **Augmentation chiếm thời gian disk I/O.** Biện pháp: pre-compute codec view offline cho train set thay vì on-the-fly khi cần; tradeoff disk space vs compute.
+- **Scope creep từ COULD.** Biện pháp: chỉ đụng đến COULD sau khi MUST có kết quả ổn định; nếu MUST không thoả success criterion, ưu tiên hiểu *vì sao* trước khi mở rộng kiến trúc.
 
 ### 4.3 Hướng phát triển (Future work)
 
-*[Liệt kê các bước Thực tập 2 và Luận văn: cụ thể hoá đề xuất thành experiment plan chi tiết, triển khai và đánh giá đề xuất, cân nhắc mở rộng sang dataset mới sau khi verify nguồn chính thức, thử các SSL front-end khác (WavLM, multi-lingual XLS-R).]*
+Các hướng dưới đây mở ra từ §3.6 và §4.2 nhưng không thuộc core proposal; được dành cho giai đoạn sau Thực tập 2 hoặc luận văn:
+
+- **Supervised contrastive codec consistency variant.** Mở rộng formulation β sang loss cross-utterance theo class: kéo các view *bonafide* (gồm cả codec-augmented) lại gần nhau và tách khỏi cụm *spoof*, và ngược lại. Variant này đòi hỏi memory bank/large batch và có rủi ro xoá cue spoof tương tự embedding-level consistency, vì vậy chỉ kích hoạt sau khi B3 score-level đã ổn định và có dev EER tham chiếu.
+- **Score-level fusion với calibration đầy đủ (từ F4).** Sử dụng failure overlap và correlation thấp giữa các họ làm motivation cho ensemble. Yêu cầu protocol nghiêm: temperature scaling per-model trên dev split → logistic regression hoặc weighted average trên *calibrated* scores → eval. Báo cáo cả EER và ECE trước/sau fusion; nếu fusion giảm EER nhưng làm xấu calibration, trade-off cần được minh hoạ rõ.
+- **Front-end / back-end ablation diện rộng (từ F5).** Mở rộng grid 2-3 front-end (XLS-R 300M, WavLM Large, multi-lingual XLS-R) × 2-3 back-end (Nes2Net-X, Nes2Net-LA local-attention variant, DuaBiMamba của XLSR-Mamba) trên cùng pipeline §4.2. Mục tiêu: tách phần cải thiện đến từ representation và phần đến từ thiết kế back-end.
+- **Continual pre-training của SSL front-end trên codec-augmented audio (long-term).** Fix tận gốc F5 ở mức pre-training: tiếp tục pre-train XLS-R/WavLM trên audio codec-augmented unlabel quy mô lớn, sau đó fine-tune CM. Yêu cầu compute lớn (GPU A100 nhiều ngày), không khả thi với budget hiện tại nhưng là hướng luận văn rõ ràng.
+- **Mở rộng benchmark.** Bổ sung MLAAD v9 (multilingual), SpeechFake (ACL 2025) và EchoFake (replay channel) sau khi verify nguồn chính thức, để đánh giá đề xuất codec-aware vượt khỏi điều kiện ASVspoof và kiểm tra tương tác giữa codec robustness và các trục robustness khác.
+- **SASV và actual DCF.** Tính min t-DCF và a-DCF (Track 2 SASV) cùng calibration metrics đầy đủ (Brier, Cllr, actual DCF) trên các dataset có protocol phù hợp. Quan trọng cho deployment claim.
+- **Phân tích định tính sâu hơn confident errors.** Sử dụng `hard_errors.csv` cùng spectrogram để xác định cue âm học (artifact tần cao, prosody bất thường, codec marker) mà mô hình bỏ sót; bổ sung cho phân tích định lượng của §4.2.
+- **Hoàn thiện đánh giá còn thiếu.** Chạy XLS-R + AASIST trên ASV21 DF để hoàn thiện Bảng 3.1; chạy lại LFCC+LCNN với recipe mạnh hơn để có baseline hand-crafted công bằng hơn.
+
+Đề xuất chính ở §4.2 là khả thi với compute hiện có, có thước đo thành công định lượng (CodecGap target <25 pp, stretch <20 pp), và có held-out codec evaluation làm hàng rào defensible về novelty. Các hướng future work ở §4.3 sẽ định hình kế hoạch dài hạn của Thực tập 2 và luận văn, được kích hoạt theo thứ tự ưu tiên sau khi proposal chính có kết quả ổn định.
 
 ---
 
