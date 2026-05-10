@@ -2,14 +2,14 @@
 
 \section{Tóm tắt kết quả}
 
-Báo cáo Thực tập 1 đã thực hiện ba khối công việc: (i) hệ thống hoá literature speech deepfake detection theo bốn trục: bài toán và metric, dataset, kiến trúc và thách thức (Chương \ref{chap:background}); (ii) tái lập sáu mô hình đại diện (LFCC+LCNN, AASIST, AASIST-L, AASIST3, XLS-R+AASIST, XLS-R+Nes2Net) trên bốn dataset (ASVspoof 2019 LA, ASVspoof 2021 DF, ASVspoof 5 Track 1, In-the-Wild) qua một pipeline đánh giá thống nhất; và (iii) phân tích lỗi diagnostic trên ASVspoof 5 để bóc tách thành phần tạo nên EER cao của các mô hình hiện đại.
+Báo cáo Thực tập 1 đã thực hiện ba khối công việc: (i) hệ thống hoá literature speech deepfake detection theo bốn trục: bài toán và metric, dataset, kiến trúc và thách thức (Chương \ref{chap:background}); (ii) tái lập benchmark chính với năm mô hình đại diện (LFCC+LCNN, AASIST, AASIST-L, XLS-R+AASIST, XLS-R+Nes2Net) trên bốn dataset (ASVspoof 2019 LA, ASVspoof 2021 DF, ASVspoof 5 Track 1, In-the-Wild) qua một pipeline đánh giá thống nhất, đồng thời ghi nhận lý do loại checkpoint AASIST3 public khỏi phân tích chính; và (iii) phân tích lỗi diagnostic trên ASVspoof 5 để bóc tách thành phần tạo nên EER cao của các mô hình hiện đại.
 
 Năm phát hiện chính đã hệ thống ở Phần 3.6 định hình hướng đề xuất:
 \begin{itemize}
     \item \textbf{F1, F3 -- Codec là bottleneck chính trên ASV5}, không phải attack family. Hai mô hình XLS-R có EER trên subset \texttt{nocodec} chỉ 2.71--3.78\% nhưng tăng lên 35--42\% trên C04/C07; trong khi EER theo attack tag (AC1/AC2/AC3) gần đồng nhất.
     \item \textbf{F2 -- Codec coverage gap giữa ASV21 DF và ASV5.} Generalization gap của XLS-R+Nes2Net chỉ +2.48 pp trên ASV21 DF nhưng +21.13 pp trên ASV5; ASV21 DF không bao phủ đầy đủ codec/encoding conditions khó có trong ASV5. ASV21 DF vẫn là benchmark codec hợp lệ, nhưng không đủ một mình để đánh giá codec robustness deployment-grade.
     \item \textbf{F4 -- Failure overlap và score correlation thấp giữa các họ kiến trúc} gợi ý cơ hội fusion ở mức hệ thống.
-    \item \textbf{F5 -- SSL front-end là điều kiện cần nhưng không đủ.} AASIST3 dùng Wav2Vec2 vẫn ở 38.75\% trên ASV5; hai mô hình cùng XLS-R 300M front-end chênh nhau đáng kể tuỳ dataset.
+    \item \textbf{F5 -- SSL front-end là điều kiện cần nhưng không đủ.} Hai mô hình cùng XLS-R 300M front-end chênh nhau đáng kể tuỳ dataset; robustness còn phụ thuộc back-end, fine-tuning recipe, checkpoint selection và calibration.
 \end{itemize}
 
 Ba phát hiện đầu (F1--F3) hội tụ về cùng một câu chuyện: ngay cả các mô hình mạnh nhất hiện nay vẫn thất bại có hệ thống ở các điều kiện codec không có trong huấn luyện, và bottleneck nằm ở training/representation distribution chứ không ở loại tấn công. Đây là motivation chính cho đề xuất ở Phần \ref{sec:proposal}.
@@ -101,7 +101,7 @@ Bảng \ref{tab:proposal-training-conditions} liệt kê các điều kiện hu�
     -
     \mathrm{EER}(\texttt{nocodec}).
 \end{equation}
-Trong đó EER theo nhóm được tính bằng chế độ \texttt{spoof\_group\_vs\_all\_bonafide} như Phần \ref{sec:error-analysis}. Lựa chọn mean(C04, C07) thay vì max ổn định hơn theo một codec đơn lẻ. Baseline B0 hiện tại với XLS-R + Nes2Net-X: EER(\texttt{nocodec}) = 2.71\%, EER(C04) = 41.17\%, EER(C07) = 42.32\%, \textbf{CodecGap khoảng 39.0 pp}.
+Trong đó EER theo nhóm được tính bằng chế độ \codepath{spoof_group_vs_all_bonafide} như Phần \ref{sec:error-analysis}. Lựa chọn mean(C04, C07) thay vì max ổn định hơn theo một codec đơn lẻ. Baseline B0 hiện tại với XLS-R + Nes2Net-X: EER(\texttt{nocodec}) = 2.71\%, EER(C04) = 41.17\%, EER(C07) = 42.32\%, \textbf{CodecGap khoảng 39.0 pp}.
 
 \textbf{Success criterion.}
 \begin{itemize}
@@ -143,7 +143,7 @@ Các hướng dưới đây mở ra từ Phần 3.6 và Phần \ref{sec:proposal
     \item \textbf{Continual pre-training của SSL front-end trên codec-augmented audio (long-term).} Fix tận gốc F5 ở mức pre-training: tiếp tục pre-train XLS-R/WavLM trên audio codec-augmented unlabel quy mô lớn, sau đó fine-tune CM. Yêu cầu compute lớn (GPU A100 nhiều ngày), không khả thi với budget hiện tại nhưng là hướng luận văn rõ ràng.
     \item \textbf{Mở rộng benchmark.} Bổ sung MLAAD v9 (multilingual), SpeechFake (ACL 2025) và EchoFake (replay channel) sau khi verify nguồn chính thức, để đánh giá đề xuất codec-aware vượt khỏi điều kiện ASVspoof và kiểm tra tương tác giữa codec robustness và các trục robustness khác.
     \item \textbf{SASV và actual DCF.} Tính min t-DCF và a-DCF (Track 2 SASV) cùng calibration metrics đầy đủ (Brier, Cllr, actual DCF) trên các dataset có protocol phù hợp. Quan trọng cho deployment claim.
-    \item \textbf{Phân tích định tính sâu hơn confident errors.} Sử dụng \texttt{hard\_errors.csv} cùng spectrogram để xác định cue âm học (artifact tần cao, prosody bất thường, codec marker) mà mô hình bỏ sót; bổ sung cho phân tích định lượng của Phần \ref{sec:proposal}.
+    \item \textbf{Phân tích định tính sâu hơn confident errors.} Sử dụng \codepath{hard_errors.csv} cùng spectrogram để xác định cue âm học (artifact tần cao, prosody bất thường, codec marker) mà mô hình bỏ sót; bổ sung cho phân tích định lượng của Phần \ref{sec:proposal}.
     \item \textbf{Hoàn thiện đánh giá còn thiếu.} Chạy XLS-R + AASIST trên ASV21 DF để hoàn thiện Bảng \ref{tab:eer-results}; chạy lại LFCC+LCNN với recipe mạnh hơn để có baseline hand-crafted công bằng hơn.
 \end{itemize}
 
