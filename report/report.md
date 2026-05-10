@@ -17,7 +17,22 @@
 
 ## Tóm tắt nội dung
 
-*[Phần abstract — sẽ viết sau cùng khi 4 chương đã hoàn thiện. Dự kiến ~250 từ tóm tắt: bối cảnh, mục tiêu, phương pháp (survey + reproduce 6 models × 4 datasets), kết quả chính (bảng EER, phát hiện ban đầu từ error analysis ASV5), đóng góp và hướng tiếp theo.]*
+Báo cáo này khảo sát và đánh giá các phương pháp phát hiện giọng nói giả mạo trong bối
+cảnh các kỹ thuật tổng hợp giọng nói và chuyển đổi giọng nói ngày càng dễ tiếp cận. Trọng tâm
+của báo cáo là bài toán Speech Deepfake Detection (SDD), trong đó hệ thống cần phân biệt một
+đoạn audio đầu vào là giọng thật (bonafide) hay giọng giả mạo (spoof). Báo cáo trình bày cơ
+sở lý thuyết về các dạng tấn công, các tập dữ liệu benchmark, các nhóm kiến trúc mô hình và
+phương pháp đánh giá bằng Equal Error Rate (EER).
+
+Bên cạnh phần khảo sát, báo cáo tái lập sáu mô hình tiêu biểu gồm LFCC+LCNN, AASIST,
+AASIST-L, AASIST3, XLS-R+AASIST và XLS-R+Nes2Net trên bốn tập dữ liệu: ASVspoof
+2019 LA, ASVspoof 2021 DF, ASVspoof 5 Track 1 và In-the-Wild. Kết quả thực nghiệm cho
+thấy hiệu năng của các mô hình thay đổi đáng kể khi chuyển từ benchmark sạch sang dữ liệu
+có codec, tấn công hiện đại hoặc điều kiện in-the-wild. Nhóm mô hình sử dụng front-end self
+supervised learning (SSL), đặc biệt XLS-R+Nes2Net, đạt EER thấp hơn và generalization gap
+nhỏ hơn trên hầu hết các dataset được khảo sát. Từ các kết quả này, báo cáo đề xuất các hướng
+phát triển tiếp theo gồm phân tích lỗi chi tiết trên ASVspoof 5, cô lập đóng góp của SSL front
+end, thử nghiệm codec-aware training và mở rộng đánh giá sang các benchmark mới.
 
 ---
 
