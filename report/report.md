@@ -138,7 +138,7 @@ Các kiến trúc SDD có thể được nhìn theo câu hỏi: mô hình lấy 
 
 Hai hướng back-end hiện đại đáng nhắc nhưng chưa reproduce là **XLSR-Mamba** và **Nes2Net-LA**. XLSR-Mamba kết hợp XLS-R/wav2vec 2.0 feature với Dual-Column Bidirectional Mamba, nhằm thay self-attention đắt đỏ bằng selective state-space model có khả năng xử lý chuỗi dài và inference nhanh hơn trên ASVspoof 2021 LA/DF và In-the-Wild [30]. Nes2Net-LA là biến thể mới của Nes2Net bổ sung local attention để tăng local context modeling và fine-grained spoofing feature extraction; paper này đi kèm MultiAPI Spoof, một dataset khoảng 230 giờ synthetic speech từ 30 API, và hiện nên được đọc như preprint/submission Interspeech 2026 thay vì benchmark đã ổn định [31]. Hai model này phù hợp để đưa vào literature review vì chúng cho thấy hướng phát triển sau Nes2Net-X: không chỉ dùng SSL front-end mạnh, mà còn tối ưu back-end để khai thác temporal/local artifact hiệu quả hơn.
 
-**Bảng 2.2.** Một số nguồn đại diện cần nhắc trong literature review.
+**Bảng 2.2.** Một số nguồn đại diện được đề cập trong literature review.
 
 | Nhóm | Paper/dataset đại diện | Vai trò trong review | Trạng thái trong report |
 |------|------------------------|----------------------|-------------------------|
