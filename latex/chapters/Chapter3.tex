@@ -17,7 +17,7 @@ Toàn bộ thí nghiệm được thực hiện trên nền tảng Kaggle với 
 
 \textbf{Mã nguồn và cấu trúc.} Mỗi dataset được đánh giá bằng một notebook riêng: \codepath{notebooks/eval_asvspoof_2019.ipynb}, \codepath{notebooks/eval_asvspoof_2021.ipynb}, \codepath{notebooks/eval_asvspoof_5.ipynb} và \codepath{notebooks/eval_in_the_wild.ipynb}. Các notebook này được sinh tự động từ template chung trong \codepath{scripts/create_eval_notebooks.py}. Cách tổ chức này giữ logic suy luận nhất quán giữa các dataset (cùng cách load checkpoint, cùng cách tính EER) trong khi vẫn cho phép tuỳ biến phần parser metadata cho từng dataset. Việc bổ sung mô hình hoặc dataset mới ở Thực tập 2 chỉ cần thêm một hàm load/parser tương ứng và sinh lại notebook.
 
-\textbf{Nguồn checkpoint.} Bốn mô hình được dùng ở chế độ pretrained, không fine-tune thêm trong phạm vi báo cáo: AASIST và AASIST-L từ repository chính thức của tác giả; XLS-R 300M từ release Fairseq; XLS-R + AASIST từ checkpoint công bố bởi nhóm SSL-AASIST \cite{ssl_aasist}; XLS-R + Nes2Net từ release của nhóm Nes2Net \cite{nes2net}. Riêng LFCC+LCNN được huấn luyện lại từ đầu trên ASVspoof 2019 LA khoảng 10 epoch do không có checkpoint công khai phù hợp; vì vậy kết quả của LFCC+LCNN nên được hiểu là \textit{project-specific baseline} chứ không đại diện cho best published LFCC+LCNN recipe.
+\textbf{Nguồn checkpoint.} Bốn mô hình được dùng ở chế độ pretrained, không fine-tune thêm trong phạm vi báo cáo: AASIST và AASIST-L từ repository chính thức của tác giả \cite{aasist_github}; XLS-R 300M từ release Fairseq \cite{xlsr_fairseq_checkpoint}; XLS-R + AASIST từ checkpoint công bố bởi nhóm SSL-AASIST \cite{ssl_aasist}; XLS-R + Nes2Net từ release của nhóm Nes2Net \cite{nes2net}. Riêng LFCC+LCNN được huấn luyện lại từ đầu trên ASVspoof 2019 LA khoảng 10 epoch do không có checkpoint công khai phù hợp; vì vậy kết quả của LFCC+LCNN nên được hiểu là \textit{project-specific baseline} chứ không đại diện cho best published LFCC+LCNN recipe.
 
 \textbf{Checkpoint bị loại khỏi benchmark chính.} AASIST3 vẫn được trình bày ở Chương \ref{chap:background} như một kiến trúc trong literature, nhưng kết quả suy luận từ checkpoint Hugging Face công khai không được đưa vào bảng EER, ranking, error analysis hay kết luận của Chương 3. Trong notebook, checkpoint được load bằng identifier \codepath{MTUCI/AASIST3}; tại thời điểm viết báo cáo, identifier này redirect tới \codepath{lab260/AASIST3} trên Hugging Face. Model card của \codepath{lab260/AASIST3} ghi rõ model đã deprecated, khuyến nghị dùng phiên bản cập nhật, và weights public trong repository không phải weights dùng cho kết quả paper \cite{aasist3_hf}. Vì vậy EER đã chạy được xem là artifact kiểm tra reproducibility/checkpoint, không phải bằng chứng về năng lực của kiến trúc AASIST3 hay kết quả paper \cite{aasist3}.
 
@@ -107,6 +107,32 @@ Bảng metric cho thấy các mô hình không dùng SSL front-end có EER cao: 
 Khi gộp theo \codepath{attack_tag} (AC1/AC2/AC3), EER của từng mô hình tương đối ổn định giữa ba nhóm. Ví dụ, AASIST dao động quanh 35.29--36.05\%, LFCC+LCNN quanh 42.05--42.83\%, XLS-R + AASIST quanh 19.55--19.72\% và XLS-R + Nes2Net quanh 21.56--21.61\%. Điều này cho thấy độ khó không chỉ nằm ở một attack family lớn, mà phân bố trên nhiều nhóm attack. Khi đi xuống từng attack cụ thể, một số attack gây lỗi nổi bật: LFCC+LCNN cao nhất ở A30 (63.03\%), A18 (57.02\%) và A27 (53.90\%); AASIST/AASIST-L gặp nhiều lỗi ở các attack như A21, A17 và A26; các mô hình XLS-R cũng còn khó với A28 và A32. Do đó, phân tích theo attack cụ thể hữu ích hơn phân tích theo \codepath{attack_tag} tổng quát.
 
 \subsection{Lỗi theo codec}
+
+Theo mô tả dữ liệu ASVspoof 5, điều kiện C00 là không mã hoá/nén và được ghi là \texttt{nocodec} trong artifact phân tích của báo cáo. Các điều kiện C01--C07 giữ băng thông 16 kHz, trong đó C04 dùng Encodec và C07 dùng chuỗi nén kép MP3+Encodec; các điều kiện C08--C11 là narrow-band 8 kHz, gồm Opus, AMR, Speex và một điều kiện varied mô phỏng các pipeline gọi điện/PSTN \cite{asvspoof5_design}. Bảng \ref{tab:asv5-codec-map} tóm tắt các codec chính để diễn giải kết quả theo mã metadata.
+
+\begin{table}[H]
+    \centering
+    \footnotesize
+    \begin{adjustbox}{width=\textwidth}
+    \begin{tabular}{p{1.8cm}|p{3.0cm}|p{3.0cm}|p{7.6cm}}
+        \textbf{Mã} & \textbf{Codec / xử lý} & \textbf{Băng thông / bitrate} & \textbf{Vai trò trong phân tích}
+        \\ \hline
+        C00 / \texttt{nocodec} & Không encoding/compression & 16 kHz, không bitrate & Điều kiện tham chiếu; EER thấp của nhóm XLS-R trên subset này cho thấy bản thân attack không phải nguồn lỗi duy nhất.
+        \\ \hline
+        C04 & Encodec & 16 kHz, 1.5--24.0 kbit/s & Neural audio codec; là một trong hai điều kiện làm EER của nhóm XLS-R tăng mạnh nhất.
+        \\ \hline
+        C07 & MP3 + Encodec & 16 kHz, varied & Chuỗi nén kép gồm codec truyền thống và neural codec; là điều kiện khó nhất hoặc gần khó nhất với nhóm XLS-R.
+        \\ \hline
+        C05 & MP3 & 16 kHz, 45--256 kbit/s & Codec truyền thống; tương đối dễ hơn C04/C07 với nhóm XLS-R nhưng vẫn khó với LFCC+LCNN.
+        \\ \hline
+        C06 & M4A & 16 kHz, 16--128 kbit/s & Codec truyền thống; dùng làm điểm tương phản vì EER của nhóm XLS-R thấp hơn rõ so với C04/C07.
+        \\ \hline
+        C11 & Varied calling pipelines & 8 kHz, varied & Narrow-band/PSTN-like condition; không phải codec đơn lẻ, mà mô phỏng biến dạng qua pipeline gọi điện.
+    \end{tabular}
+    \end{adjustbox}
+    \caption{Các điều kiện codec/encoding ASVspoof 5 quan trọng cho diễn giải lỗi trong báo cáo. ASVspoof 5 còn có C01 Opus 16 kHz, C02 AMR 16 kHz, C03 Speex 16 kHz, C08 Opus 8 kHz, C09 AMR 8 kHz và C10 Speex 8 kHz \cite{asvspoof5_design}.}
+    \label{tab:asv5-codec-map}
+\end{table}
 
 Codec là phát hiện nổi bật nhất trong error analysis ASV5, đặc biệt với nhóm XLS-R. Với hai mô hình XLS-R, subset \texttt{nocodec} có EER rất thấp so với EER tổng: XLS-R + Nes2Net đạt 2.71\% và XLS-R + AASIST đạt 3.78\%. Một số codec khác cũng tương đối thấp, như C05 (4.11\% / 4.81\%), C11 (5.82\% / 8.01\%) và C06 (8.20\% / 7.77\%). Ngược lại, C07 và C04 làm EER tăng rất mạnh: XLS-R + Nes2Net đạt 42.32\% ở C07 và 41.17\% ở C04; XLS-R + AASIST đạt 36.87\% ở C07 và 35.79\% ở C04. Điều này cho thấy EER cao của nhóm XLS-R trên ASV5 chủ yếu phản ánh codec robustness gap, không chỉ modern attack robustness nói chung.
 
