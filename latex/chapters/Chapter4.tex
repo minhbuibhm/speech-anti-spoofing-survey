@@ -7,7 +7,7 @@ Báo cáo Thực tập 1 được xem như bước khởi đầu của một m�
 Các kết quả reproduce trong Chương \ref{chap:experiment} có giá trị như một \textbf{pilot benchmark}. Chúng cho thấy pipeline hiện tại đã đủ để chạy nhiều checkpoint, lưu score thống nhất, tính EER cross-dataset và thực hiện error analysis theo metadata của ASVspoof 5. Đồng thời, các kết quả này tạo ra một số bài học ban đầu:
 
 \begin{itemize}
-    \item \textbf{Thứ hạng mô hình không ổn định giữa các dataset.} XLS-R+Nes2Net dẫn đầu trên ASV19 LA, ASV21 DF và In-the-Wild, nhưng trên ASV5 lại kém XLS-R+AASIST. Điều này cho thấy một benchmark đơn lẻ không đủ để đánh giá robustness.
+    \item \textbf{Thứ hạng mô hình không ổn định giữa các dataset.} XLS-R+Nes2Net dẫn đầu trên ASV19 LA, ASV21 DF và In-the-Wild, nhưng trên ASV5 lại kém XLS-R+AASIST; riêng ASV21 DF, hai mô hình XLS-R có gap gần nhau hơn nhiều so với ASV5. Điều này cho thấy một benchmark đơn lẻ không đủ để đánh giá robustness.
     \item \textbf{SSL front-end giúp nhưng không đủ.} Hai mô hình XLS-R nhìn chung tốt hơn nhóm không dùng SSL front-end trên các dataset khó, nhưng vẫn có EER cao trên ASV5. Sự khác biệt giữa XLS-R+AASIST và XLS-R+Nes2Net cũng cho thấy back-end, checkpoint và recipe đánh giá vẫn quan trọng.
     \item \textbf{ASVspoof 5 phơi bày failure mode theo codec/encoding.} Với hai mô hình XLS-R, subset \texttt{nocodec} có EER thấp hơn nhiều so với C04/C07, gợi ý rằng codec robustness là một trục đánh giá cần được tách riêng.
     \item \textbf{Failure overlap và score correlation gợi ý khả năng fusion}, nhưng đây mới là bằng chứng gián tiếp; cần thí nghiệm calibration/fusion riêng trước khi kết luận.

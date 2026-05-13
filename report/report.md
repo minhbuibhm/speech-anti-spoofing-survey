@@ -32,8 +32,8 @@ Hugging Face cho biết checkpoint hiện tại đã deprecated và không phả
 kết quả paper. Kết quả thực nghiệm cho
 thấy hiệu năng của các mô hình thay đổi đáng kể khi chuyển từ benchmark sạch sang dữ liệu
 có codec, tấn công hiện đại hoặc điều kiện in-the-wild. Nhóm mô hình sử dụng front-end self
-supervised learning (SSL), đặc biệt XLS-R+Nes2Net, đạt EER thấp hơn và generalization gap
-nhỏ hơn trên hầu hết các dataset được khảo sát. Tuy nhiên, phạm vi hiện tại vẫn là một pilot
+supervised learning (SSL), đặc biệt nhóm XLS-R+Nes2Net/XLS-R+AASIST, đạt EER thấp hơn
+và generalization gap nhỏ hơn trên hầu hết các dataset được khảo sát. Tuy nhiên, phạm vi hiện tại vẫn là một pilot
 benchmark. Vì vậy, báo cáo đề xuất hướng phát triển tiếp theo theo thứ tự: mở rộng bản đồ
 dữ liệu và kiến trúc cho SDD, chuẩn hoá protocol đánh giá, sau đó chọn baseline và kiểm
 chứng các hướng cải thiện ở mức ý niệm.
@@ -270,14 +270,14 @@ Toàn bộ thí nghiệm được thực hiện trên nền tảng Kaggle với 
 
 Bảng 3.1 tổng hợp EER (%) của năm mô hình trong benchmark chính trên bốn dataset. Các giá trị được tính trên tập eval của từng dataset bằng `sklearn` từ điểm số *bonafide* và nhãn ground truth (1 = *bonafide*, 0 = *spoof*). AASIST3 không xuất hiện trong bảng vì checkpoint Hugging Face công khai không đại diện cho weights dùng trong paper, như đã nêu ở §3.1.
 
-**Bảng 3.1.** EER (%) của năm mô hình trong benchmark chính trên bốn dataset. Số nhỏ hơn là tốt hơn. Ô "—" tương ứng với đánh giá chưa hoàn thành tại thời điểm viết báo cáo (XLS-R + AASIST trên ASVspoof 2021 DF).
+**Bảng 3.1.** EER (%) của năm mô hình trong benchmark chính trên bốn dataset. Số nhỏ hơn là tốt hơn.
 
 | Mô hình | ASV19 LA | ASV21 DF | ASV5 (Track 1) | In-the-Wild |
 |---------|----------|----------|----------------|-------------|
 | LFCC + LCNN | 19.64 | 33.81 | 42.31 | 70.23 |
 | AASIST | 4.59 | 17.70 | 35.75 | 41.79 |
 | AASIST-L | 6.74 | 19.13 | 37.29 | 45.28 |
-| XLS-R + AASIST | 1.17 | — | 19.60 | 10.91 |
+| XLS-R + AASIST | 1.17 | 3.72 | 19.60 | 10.91 |
 | XLS-R + Nes2Net | 0.45 | 2.93 | 21.58 | 5.57 |
 
 Một số xu hướng có thể quan sát từ Bảng 3.1:
@@ -293,7 +293,7 @@ Các nhận xét trên chỉ giới hạn trong phạm vi năm mô hình của b
 
 **ASVspoof 2019 LA (71,237 utterance — 7,355 bonafide / 63,882 spoof).** Đây là benchmark sạch nhất trong bốn dataset. Bốn mô hình đạt EER dưới 7% (XLS-R + Nes2Net 0.45, XLS-R + AASIST 1.17, AASIST 4.59, AASIST-L 6.74), trong khi LFCC+LCNN ở mức 19.64. LFCC+LCNN phản ánh baseline được huấn luyện lại trong project với recipe đơn giản; con số này không nên được xem là hiệu năng tốt nhất có thể của toàn bộ họ LFCC+LCNN trong literature.
 
-**ASVspoof 2021 DF (458,868 utterance — 16,977 bonafide / 441,891 spoof).** Dataset này tái sử dụng nguồn audio của ASVspoof 2019 nhưng được re-encode qua nhiều cấu hình codec lossy. Các mô hình không dùng XLS-R làm front-end có xu hướng tăng EER khi chuyển từ ASV19 LA sang ASV21 DF: AASIST từ 4.59 → 17.70 (+13.1 pp), AASIST-L từ 6.74 → 19.13 (+12.4 pp), và LFCC+LCNN từ 19.64 → 33.81 (+14.2 pp). XLS-R + Nes2Net tăng nhẹ hơn (0.45 → 2.93, +2.5 pp). Quan sát này gợi ý rằng codec lossy có ảnh hưởng đáng kể tới các mô hình hand-crafted hoặc end-to-end nhỏ, trong khi SSL front-end mạnh hơn có thể giảm gap trên benchmark codec này.
+**ASVspoof 2021 DF (458,868 utterance — 16,977 bonafide / 441,891 spoof).** Dataset này tái sử dụng nguồn audio của ASVspoof 2019 nhưng được re-encode qua nhiều cấu hình codec lossy. Các mô hình không dùng XLS-R làm front-end có xu hướng tăng EER khi chuyển từ ASV19 LA sang ASV21 DF: AASIST từ 4.59 → 17.70 (+13.1 pp), AASIST-L từ 6.74 → 19.13 (+12.4 pp), và LFCC+LCNN từ 19.64 → 33.81 (+14.2 pp). Hai mô hình XLS-R tăng nhẹ hơn: XLS-R + Nes2Net từ 0.45 → 2.93 (+2.5 pp) và XLS-R + AASIST từ 1.17 → 3.72 (+2.55 pp). Quan sát này gợi ý rằng codec lossy có ảnh hưởng đáng kể tới các mô hình hand-crafted hoặc end-to-end nhỏ, trong khi SSL front-end mạnh hơn có thể giảm gap trên benchmark codec này.
 
 **ASVspoof 5 — Track 1 eval (680,774 utterance — 138,688 bonafide / 542,086 spoof).** ASVspoof 5 có thiết kế rộng hơn các benchmark trước: toàn database có 32 attack algorithms, còn Track 1 eval dùng trong project có 16 attacks và điều kiện codec/encoding đa dạng. Trên eval split, tất cả mô hình đều có EER cao hơn rõ rệt so với ASV19 LA. Nhóm không dùng SSL front-end nằm trong khoảng 35.75-42.31% EER. Hai mô hình XLS-R đạt EER thấp hơn (XLS-R + AASIST 19.60%, XLS-R + Nes2Net 21.58%), nhưng mức lỗi này vẫn cho thấy ASV5 là stress test khó. Sự thay đổi thứ tự so với ASV19 LA cho thấy hiệu năng trên benchmark sạch không dự đoán trực tiếp được hành vi trên modern attack benchmark.
 
@@ -343,7 +343,7 @@ Bảng 3.2 trình bày *generalization gap* — chênh lệch EER giữa từng 
 | LFCC + LCNN | +14.17 | +22.67 | +50.59 |
 | AASIST | +13.11 | +31.15 | +37.19 |
 | AASIST-L | +12.39 | +30.55 | +38.54 |
-| XLS-R + AASIST | — | +18.43 | +9.74 |
+| XLS-R + AASIST | +2.55 | +18.43 | +9.74 |
 | XLS-R + Nes2Net | +2.48 | +21.13 | +5.12 |
 
 Một số quan sát:
@@ -353,7 +353,7 @@ Một số quan sát:
 - **Generalization gap cần được đọc cùng EER tuyệt đối.** LFCC+LCNN có gap ASV5 (+22.67 pp) nhỏ hơn AASIST (+31.15 pp), nhưng EER tuyệt đối của LFCC+LCNN vẫn cao hơn (42.31% so với 35.75%). Gap nhỏ hơn trong trường hợp baseline ASV19 đã cao không nhất thiết nghĩa là robust hơn.
 - **AASIST/AASIST-L có gap lớn trên cả ASV5 và In-the-Wild**, phù hợp với giả thuyết rằng raw waveform model nhỏ có thể học artifact gắn với ASV19-style training distribution.
 - **XLS-R + AASIST và XLS-R + Nes2Net có hành vi khác nhau theo dataset**: XLS-R + AASIST thấp hơn trên ASV5 eval, còn XLS-R + Nes2Net thấp hơn trên ASV21 DF và In-the-Wild. Điều này gợi ý rằng back-end vẫn ảnh hưởng đáng kể, không chỉ SSL front-end.
-- **ASV21 DF và ASV5 đều liên quan đến codec nhưng không gây cùng mức degradation.** XLS-R + Nes2Net chỉ tăng +2.48 pp trên ASV21 DF nhưng tăng +21.13 pp trên ASV5. Một giả thuyết hợp lý là các codec/encoding condition khó trong ASV5, đặc biệt C04/C07, khác đáng kể so với các codec truyền thống trong ASV21 DF hoặc ít xuất hiện trong pre-training/fine-tuning của mô hình. Đây là open question cần khảo sát chi tiết theo codec configuration ở Thực tập 2.
+- **ASV21 DF và ASV5 đều liên quan đến codec nhưng không gây cùng mức degradation.** Hai mô hình XLS-R chỉ tăng khoảng +2.5 pp trên ASV21 DF (XLS-R + Nes2Net +2.48 pp, XLS-R + AASIST +2.55 pp) nhưng tăng mạnh hơn nhiều trên ASV5 (+21.13 pp và +18.43 pp). Một giả thuyết hợp lý là các codec/encoding condition khó trong ASV5, đặc biệt C04/C07, khác đáng kể so với các codec truyền thống trong ASV21 DF hoặc ít xuất hiện trong pre-training/fine-tuning của mô hình. Đây là open question cần khảo sát chi tiết theo codec configuration ở Thực tập 2.
 
 Các nhận xét trên giới hạn trong phạm vi năm mô hình trong benchmark chính và bốn dataset được khảo sát, và phụ thuộc vào việc các checkpoint pretrained được sử dụng đều không fine-tune.
 
@@ -362,7 +362,7 @@ Các nhận xét trên giới hạn trong phạm vi năm mô hình trong benchma
 Tổng hợp các phân tích §3.2–§3.5, báo cáo rút ra năm phát hiện chính. Mỗi phát hiện được nêu cùng phần phân tích sinh ra nó và vai trò của nó trong roadmap mở rộng benchmark ở Chương 4.
 
 - **F1 — Codec dominance trên ASV5.** EER cao của hai mô hình XLS-R trên ASV5 chủ yếu đến từ một số codec khó (đặc biệt C04 và C07, EER 35-42%), trong khi subset `nocodec` có EER chỉ 2.71% (XLS-R + Nes2Net) và 3.78% (XLS-R + AASIST). Vấn đề nằm ở *codec robustness*, không ở tổng thể attack family. *(§3.4.3 → §4.2, §4.4: codec/encoding là một trục cần đưa vào benchmark map và là candidate direction cần kiểm chứng thêm.)*
-- **F2 — Codec distribution shift giữa ASV21 DF và ASV5.** XLS-R + Nes2Net có generalization gap chỉ +2.48 pp trên ASV21 DF nhưng +21.13 pp trên ASV5. Điều này gợi ý codec/encoding condition khó trong ASV5 không trùng phân bố với codec truyền thống của ASV21 DF — ASV21 DF không đủ để đo codec robustness thực tế. *(§3.4.3 + §3.5 → §4.2: cần mở rộng nhóm dataset codec/transmission/neural codec.)*
+- **F2 — Codec distribution shift giữa ASV21 DF và ASV5.** Hai mô hình XLS-R có generalization gap chỉ khoảng +2.5 pp trên ASV21 DF nhưng tăng lên +18.43 đến +21.13 pp trên ASV5. Điều này gợi ý codec/encoding condition khó trong ASV5 không trùng phân bố với codec truyền thống của ASV21 DF — ASV21 DF không đủ để đo codec robustness thực tế. *(§3.4.3 + §3.5 → §4.2: cần mở rộng nhóm dataset codec/transmission/neural codec.)*
 - **F3 — Attack family không phải bottleneck chính trên ASV5.** EER theo attack tag (AC1/AC2/AC3) gần đồng nhất ở mọi mô hình (AASIST 35.29-36.05%, LFCC+LCNN 42.05-42.83%, XLS-R + AASIST 19.55-19.72%, XLS-R + Nes2Net 21.56-21.61%). Bottleneck quan sát được trong pilot này nằm ở codec/encoding hơn là attack tag thô. *(§3.4.2 → §4.2: benchmark map cần tách attack family khỏi codec/channel condition.)*
 - **F4 — Failure overlap và score correlation gợi ý cơ hội fusion.** Cặp AASIST/AASIST-L overlap 0.62 và correlation 0.84 (cùng họ), trong khi một số cặp khác họ thấp hơn (AASIST với LFCC+LCNN −0.08, LFCC+LCNN với XLS-R+AASIST 0.13). Hai mô hình XLS-R có correlation 0.49 — vẫn còn lỗi riêng dù cùng front-end family. Đây là evidence gián tiếp cho score-level fusion. *(§3.4.5 → §4.4: fusion/calibration là candidate direction, cần thí nghiệm riêng.)*
 - **F5 — SSL front-end là điều kiện cần nhưng không đủ.** Hai mô hình cùng dùng XLS-R 300M front-end vẫn chênh nhau đáng kể tuỳ dataset: XLS-R + AASIST tốt hơn trên ASV5, còn XLS-R + Nes2Net tốt hơn trên ITW và ASV21 DF. Vì vậy robustness không chỉ đến từ SSL representation, mà còn phụ thuộc back-end, fine-tuning recipe, checkpoint selection và calibration. *(§3.3, §3.4.1, §3.5 → §4.2, §4.4: cần mở rộng bản đồ kiến trúc và ablation front-end/back-end.)*
@@ -373,7 +373,6 @@ Tổng hợp các phân tích §3.2–§3.5, báo cáo rút ra năm phát hiện
 - **AASIST3 không nằm trong benchmark chính** dù đã được chạy thử, vì checkpoint Hugging Face public (`MTUCI/AASIST3`, hiện redirect tới `lab260/AASIST3`) đã deprecated và model card ghi rõ weights public không phải weights dùng cho kết quả paper [32]. Do đó báo cáo không kết luận AASIST3 kém hơn AASIST hay kém hơn các mô hình khác; kết quả chạy thử chỉ được giữ làm artifact traceability.
 - **Toàn bộ checkpoint khác cũng ở chế độ pretrained**, không fine-tune; kết quả phản ánh khả năng tổng quát hoá out-of-the-box, chưa khảo sát hiệu năng sau fine-tune.
 - **EER theo nhóm trong §3.4 dùng chế độ `spoof_group_vs_all_bonafide`** thay vì EER nội bộ; lựa chọn này cho phép so sánh trên cùng thước đo nhưng số tuyệt đối không trực tiếp so với các báo cáo dùng cấu hình EER khác.
-- **XLS-R + AASIST chưa hoàn thành đánh giá trên ASV21 DF** tại thời điểm báo cáo, dẫn đến một ô trống trong Bảng 3.1 và Bảng 3.2.
 - **In-the-Wild có khả năng chứa label noise** do ground truth đến từ xác minh thủ công; EER cao của các mô hình không dùng SSL front-end có thể bị phóng đại một phần do nhãn nhiễu.
 - **Báo cáo chỉ dùng CM score ở utterance-level**, chưa tính min t-DCF hay a-DCF (SASV); chưa phân tích sâu calibration — hiện mới có ECE ở mức artifact phụ trợ trong `all_metrics.csv`, chưa có Brier/Cllr/actual DCF. Những thước đo bổ sung này được dành cho Thực tập 2.
 
@@ -381,7 +380,7 @@ Các phát hiện và giới hạn ở §3.6 định hình roadmap ở Chương 
 
 ### 3.7 Tóm tắt chương
 
-Chương 3 chuyển từ literature sang thực nghiệm với ba đóng góp đã nêu ở đầu chương: pipeline đánh giá thống nhất, cross-dataset benchmark năm mô hình × bốn dataset, và phân tích lỗi diagnostic trên ASVspoof 5. §3.1 mô tả thiết lập trên Kaggle T4, sinh notebook eval từ template chung và lưu kết quả theo định dạng `results.pkl` thống nhất (khoá `__metadata__` cho các pkl mới); phân biệt rõ bốn checkpoint pretrained đủ điều kiện so sánh, LFCC+LCNN project-specific baseline (huấn luyện lại ~10 epoch), và checkpoint AASIST3 public bị loại khỏi phân tích chính. §3.2 trình bày bảng EER tổng hợp (Bảng 3.1) cùng bốn quan sát: dải EER trải rộng giữa các mô hình, *leaderboard inversion* giữa các dataset, khoảng cách giữa nhóm XLS-R 300M và phần còn lại nới rộng theo độ khó, và modern-attack robustness vẫn chưa được giải quyết. §3.3 phân tích EER theo từng dataset, làm rõ vai trò của ASVspoof 2019 LA (clean), ASVspoof 2021 DF (codec stress), ASVspoof 5 (modern attacks) và In-the-Wild (domain shift), kèm các caveat in-context (LFCC+LCNN project-baseline, label noise của ITW, checkpoint AASIST3 excluded). §3.4 — phần phân tích lỗi sâu chính của báo cáo — bóc tách EER cao trên ASV5 thành các thành phần: phân phối điểm số, EER theo attack ID và attack tag, EER theo codec, confident errors (qualitative), và failure overlap + score correlation; phát hiện nổi bật là EER cao của nhóm XLS-R chủ yếu đến từ C04/C07 (`nocodec` chỉ 2.71-3.78%), trong khi attack tag AC1/AC2/AC3 gần đồng nhất ở các mô hình chính. §3.5 lượng hoá generalization gap so với ASVspoof 2019 LA (Bảng 3.2) và làm nổi rằng ASV21 DF không đại diện cho codec robustness thực tế: XLS-R + Nes2Net chỉ tăng +2.48 pp trên ASV21 DF nhưng +21.13 pp trên ASV5. §3.6 tổng hợp năm phát hiện chính (F1 codec dominance, F2 codec distribution shift, F3 attack family không phải bottleneck, F4 fusion signal qua failure overlap/correlation, F5 front-end/back-end/checkpoint recipe đều quan trọng) và bảy giới hạn (LFCC project-specific, AASIST3 public checkpoint excluded, pretrained-only, EER mode theo nhóm, XLS-R+AASIST chưa xong ASV21 DF, label noise ITW, chưa có min t-DCF/Brier/Cllr/actual DCF). Các kết quả này được dùng ở Chương 4 như pilot evidence để xây roadmap mở rộng bản đồ dữ liệu/kiến trúc và lựa chọn baseline sau khi benchmark đủ rộng hơn.
+Chương 3 chuyển từ literature sang thực nghiệm với ba đóng góp đã nêu ở đầu chương: pipeline đánh giá thống nhất, cross-dataset benchmark năm mô hình × bốn dataset, và phân tích lỗi diagnostic trên ASVspoof 5. §3.1 mô tả thiết lập trên Kaggle T4, sinh notebook eval từ template chung và lưu kết quả theo định dạng `results.pkl` thống nhất (khoá `__metadata__` cho các pkl mới); phân biệt rõ bốn checkpoint pretrained đủ điều kiện so sánh, LFCC+LCNN project-specific baseline (huấn luyện lại ~10 epoch), và checkpoint AASIST3 public bị loại khỏi phân tích chính. §3.2 trình bày bảng EER tổng hợp (Bảng 3.1) cùng bốn quan sát: dải EER trải rộng giữa các mô hình, *leaderboard inversion* giữa các dataset, khoảng cách giữa nhóm XLS-R 300M và phần còn lại nới rộng theo độ khó, và modern-attack robustness vẫn chưa được giải quyết. §3.3 phân tích EER theo từng dataset, làm rõ vai trò của ASVspoof 2019 LA (clean), ASVspoof 2021 DF (codec stress), ASVspoof 5 (modern attacks) và In-the-Wild (domain shift), kèm các caveat in-context (LFCC+LCNN project-baseline, label noise của ITW, checkpoint AASIST3 excluded). §3.4 — phần phân tích lỗi sâu chính của báo cáo — bóc tách EER cao trên ASV5 thành các thành phần: phân phối điểm số, EER theo attack ID và attack tag, EER theo codec, confident errors (qualitative), và failure overlap + score correlation; phát hiện nổi bật là EER cao của nhóm XLS-R chủ yếu đến từ C04/C07 (`nocodec` chỉ 2.71-3.78%), trong khi attack tag AC1/AC2/AC3 gần đồng nhất ở các mô hình chính. §3.5 lượng hoá generalization gap so với ASVspoof 2019 LA (Bảng 3.2) và làm nổi rằng ASV21 DF không đại diện cho codec robustness thực tế: hai mô hình XLS-R chỉ tăng khoảng +2.5 pp trên ASV21 DF nhưng tăng +18.43 đến +21.13 pp trên ASV5. §3.6 tổng hợp năm phát hiện chính (F1 codec dominance, F2 codec distribution shift, F3 attack family không phải bottleneck, F4 fusion signal qua failure overlap/correlation, F5 front-end/back-end/checkpoint recipe đều quan trọng) và sáu giới hạn (LFCC project-specific, AASIST3 public checkpoint excluded, pretrained-only, EER mode theo nhóm, label noise ITW, chưa có min t-DCF/Brier/Cllr/actual DCF). Các kết quả này được dùng ở Chương 4 như pilot evidence để xây roadmap mở rộng bản đồ dữ liệu/kiến trúc và lựa chọn baseline sau khi benchmark đủ rộng hơn.
 
 ---
 
