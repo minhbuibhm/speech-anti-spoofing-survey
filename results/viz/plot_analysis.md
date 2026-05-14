@@ -105,6 +105,50 @@ Hệ quả thực tiễn cho roadmap (khớp với §4.4 trong report):
 - Consistency regularization giữa cùng utterance qua các codec khác nhau, ép embedding ổn định
 - Score calibration trên dev split có codec để tránh model "đè quá tay" về spoof khi gặp neural codec
 
+---
+
+## Bổ sung: confident False Positive trên modern attack (A28, A17)
+
+FP là loại lỗi có ý nghĩa security: spoof bị model gán bonafide. Verify từ `error_analysis.pkl` cho 5 mô hình trên ASV5 eval (FP rate per attack):
+
+- **A28** = #1 FP cho cả hai mô hình XLS-R: XLS-R+AASIST 0.17%, XLS-R+Nes2Net 3.01%.
+- **A17** = #1 FP cho AASIST (11.96%), #2 cho AASIST-L (8.98%); đồng thời nằm top-2 của cả hai XLS-R model (0.06% và 0.69%) → là attack cross-cutting khó nhất qua hai họ kiến trúc.
+
+Bốn mẫu dưới đây thuộc nhóm FP confident trên A28/A17 với codec = nocodec (loại bỏ biến codec, để hiệu ứng còn lại thuần là "attack quality vs model representation").
+
+### E_0004782150 — A28 nocodec, XLS-R+Nes2Net FP (conf ≈ 0.99999)
+
+**Analysis:** Speech ~8 s với nhiều burst voiced, một silence gap ngắn 1.5-2.5 s. LTAS hard error (xanh A28) và bonafide reference E_0009676852 (cam) chồng khít gần như hoàn hảo trên toàn dải 0-8 kHz, kể cả phần roll-off mềm ở ~7.5 kHz. Không có offset spectral tilt, không có bump/dip ở bất kỳ dải tần nào — A28 đã tạo được spectral envelope đồng nhất với bonafide. STFT và mel cho thấy harmonic structure dày, formant trajectory ổn định theo nguyên âm, không có vertical banding hay replication artifact nhìn thấy. LFCC mịn, chỉ vài coefficient bậc thấp có hoạt động. Centroid 1-2.5 kHz dao động hợp lý theo voicing, rolloff đạt 5 kHz ở consonant, ZCR thấp — tất cả descriptor đều rơi vào khoảng bonafide. → Không có cue phổ vĩ mô để model bắt; XLS-R+Nes2Net FP với conf ≈ 1 cho thấy attack đã tiệm cận manifold bonafide ở mức representation. Đây là kịch bản failure mode đáng lo nhất: attack hiện đại không để lại fingerprint phân biệt bằng mắt.
+
+### E_0009392843 — A28 nocodec, XLS-R+Nes2Net FP (conf ≈ 0.99996)
+
+**Analysis:** Pattern waveform đáng chú ý: 0-3.5 s gần như im lặng / nhiễu rất nhẹ, rồi speech voiced từ 4 s trở đi — đây là dạng "lead-in padding" rất đặc trưng pipeline TTS/VC (alignment đệm silence ở đầu). Đây là *cue tiềm năng* mà XLS-R+Nes2Net không khai thác. LTAS hard error (xanh) chồng khít bonafide reference E_0001292361 (cam) trên dải 0-6 kHz, hard error chỉ tụt 1-3 dB ở dải 5-7 kHz. STFT/mel: harmonic và formant tự nhiên trong segment voiced; vùng silence đầu utterance không có hiện tượng "phantom harmonics" hay buzz, gợi ý A28 generator giữ silence sạch (không vocoder bleed). LFCC flat. Centroid và rolloff biến thiên hợp lý. → Cue duy nhất khả nghi là cấu trúc thời gian (silence padding); cue phổ thì không có. Confirm A28 ở chế độ nocodec là điểm yếu thuần ở mức temporal/representation, không phải spectral.
+
+### E_0002841318 — A17 nocodec, AASIST FP (conf ≈ 0.99999)
+
+**Analysis:** *Đây là mẫu thú vị nhất trong bốn mẫu mới — A17 để lại cue phổ rất rõ mà AASIST vẫn bỏ qua.* Speech ~7.8 s với prosody biến thiên tự nhiên. LTAS hard error (xanh A17) **cao hơn** bonafide reference E_0008820523 (cam) khoảng 5-10 dB trong dải 1-7 kHz — spectral tilt của A17 *nông hơn* hẳn bonafide (high frequencies relatively boosted). Đây là fingerprint synthesizer rõ rệt: pipeline TTS thường tạo speech có HF content phẳng/đậm hơn natural speech. STFT thể hiện vertical banding nhẹ ở dải 2-5 kHz tại các consonant — artifact aliasing/quantization tiềm năng của vocoder. Mel có cấu trúc "frame-like" đều đặn hơn natural. LFCC vẫn flat (vì AASIST không dùng LFCC). Centroid và rolloff cao bất thường (centroid spike ~3-4 kHz, rolloff peaks ~5-6 kHz), khớp với LTAS tilt nông. → **Cue tồn tại rõ ở mức spectral** (LTAS slope, vertical banding, centroid cao), nhưng AASIST raw-waveform end-to-end **bỏ qua hoàn toàn** và FP với conf ≈ 1. Đây là evidence trực quan rằng AASIST trained on ASV19 LA đã học artifact phụ thuộc training distribution, không phải tilt/spectral signature tổng quát.
+
+### E_0002067090 — A17 nocodec, AASIST FP (conf ≈ 0.99999)
+
+**Analysis:** Pattern lặp lại của E_0002841318, xác nhận đặc trưng phổ của A17 là systematic chứ không phải single-sample fluke. Speech ~7.5 s, voiced liên tục. LTAS hard error (xanh) **cao hơn** bonafide reference E_0002328452 (cam) ~5-10 dB trên dải 2-7 kHz, cùng pattern "spectral tilt nông" như mẫu trước. STFT có harmonic structure rõ kèm vertical banding nhẹ; mel cho thấy energy phân bố đều trong dải mid-high khác với bonafide thường tập trung dưới 3 kHz. LFCC có texture rõ hơn các mẫu khác (vì nocodec giữ băng tần đầy đủ + A17 tạo spectral spread). Centroid và rolloff đạt đỉnh 5-6 kHz ở consonant — confirm spectrum nông. Đáng chú ý theo verify từ error_analysis.pkl, mẫu này cũng có score FP cao trên cả hai XLS-R model (rank top FP của A17 cho XLS-R+Nes2Net) — tức A17 *cũng đánh được* SSL representation, dù FP rate tổng thấp hơn nhiều so với AASIST (0.69% vs 11.96%). → AASIST bỏ cue spectral của A17 hoàn toàn; XLS-R+Nes2Net giảm mạnh nhưng chưa loại bỏ.
+
+### Tổng kết riêng cho nhóm FP × A28/A17
+
+Bốn mẫu nocodec (loại bỏ biến codec) cho ra hai failure mode rất khác nhau giữa hai họ kiến trúc:
+
+1. **A28 vs XLS-R+Nes2Net (3.01% FP rate)** — *No visible spectral cue*. LTAS gần như chồng bonafide; cue khả nghi duy nhất là silence padding cấu trúc thời gian. SSL representation 300M vẫn FP. Đây là kịch bản "attack thực sự gần manifold bonafide" — khó giải quyết bằng spectral feature thuần.
+
+2. **A17 vs AASIST (11.96% FP rate)** — *Visible spectral cue ignored*. LTAS hard error cao hơn bonafide ~5-10 dB ở dải 1-7 kHz, vertical banding ở STFT, centroid/rolloff cao bất thường. AASIST raw-waveform CNN bỏ qua hoàn toàn. Đây là kịch bản "model học sai feature" — có thể cải thiện bằng spectral-aware augmentation hoặc front-end mạnh hơn.
+
+3. **A17 trên XLS-R+Nes2Net** (0.69% FP rate, giảm ~17× so với AASIST): SSL representation *có bắt được* spectral cue của A17 hơn rõ rệt, nhưng chưa hoàn toàn. Câu này confirm SSL front-end *giúp* trên A17 (cue spectral) nhưng *không giúp* trên A28 (cue ẩn).
+
+Hai điểm này tạo asymmetry quan trọng cho roadmap §4.4:
+- **Codec-aware augmentation** (đã đề xuất) chỉ giải quyết một nửa C04/C07 FN, không giúp A28 FP vì A28 ở nocodec đã đánh được rồi.
+- **Attack-aware augmentation / hard-attack mining** cho A28 và A17 là hướng cần thêm vào: A28 vì SSL 300M chưa đủ; A17 vì raw-waveform end-to-end ignore spectral cue.
+- **Front-end/back-end ablation** (F5) có evidence cụ thể: XLS-R giảm FP rate trên A17 từ 11.96% xuống 0.69% so với AASIST → front-end thực sự đóng góp; XLS-R+AASIST giảm FP trên A28 từ 3.01% xuống 0.17% so với XLS-R+Nes2Net (same front-end, khác back-end) → back-end cũng đóng góp đáng kể.
+
+> ⚠ Lưu ý wording cho report: không claim "XLS-R+AASIST tốt hơn XLS-R+Nes2Net chủ yếu vì xử lý A28 tốt hơn" vì chưa decomposition tổng lỗi. Diễn đạt an toàn: *"A28 là FP bottleneck rõ nhất của cả hai XLS-R; XLS-R+AASIST giảm mạnh FP trên A28 (0.17%) so với XLS-R+Nes2Net (3.01%)"*.
+
 ## Tóm tắt cross-cutting
 
 - **C11 (narrowband 8 kHz)**: xoá band >4 kHz → cue HF biến mất → lỗi đi cả hai chiều (E_0008501537 FP, E_0008571310 FN) trên cùng codec.
