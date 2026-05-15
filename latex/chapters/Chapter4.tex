@@ -8,8 +8,8 @@ Các kết quả reproduce trong Chương \ref{chap:experiment} có giá trị n
 
 \begin{itemize}
     \item \textbf{Thứ hạng mô hình không ổn định giữa các dataset.} XLS-R+Nes2Net dẫn đầu trên ASV19 LA, ASV21 DF và In-the-Wild, nhưng trên ASV5 lại kém XLS-R+AASIST; riêng ASV21 DF, hai mô hình XLS-R có gap gần nhau hơn nhiều so với ASV5. Điều này cho thấy một benchmark đơn lẻ không đủ để đánh giá robustness.
-    \item \textbf{SSL front-end giúp nhưng không đủ.} Hai mô hình XLS-R nhìn chung tốt hơn nhóm không dùng SSL front-end trên các dataset khó, nhưng vẫn có EER cao trên ASV5. Sự khác biệt giữa XLS-R+AASIST và XLS-R+Nes2Net cũng cho thấy back-end, checkpoint và recipe đánh giá vẫn quan trọng.
-    \item \textbf{ASVspoof 5 phơi bày failure mode theo codec/encoding.} Với hai mô hình XLS-R, subset \texttt{nocodec} có EER thấp hơn nhiều so với C04/C07, gợi ý rằng codec robustness là một trục đánh giá cần được tách riêng.
+    \item \textbf{SSL front-end hiệu quả nhưng không đủ.} Hai mô hình XLS-R nhìn chung tốt hơn nhóm không dùng SSL front-end trên các dataset khó, nhưng vẫn có EER cao trên ASV5. Sự khác biệt giữa XLS-R+AASIST và XLS-R+Nes2Net cũng cho thấy back-end, checkpoint và recipe đánh giá vẫn quan trọng.
+    \item \textbf{ASVspoof 5 cho thấy failure mode theo codec/encoding.} Với hai mô hình XLS-R, subset \texttt{nocodec} có EER thấp hơn nhiều so với C04/C07, gợi ý rằng codec robustness là một trục đánh giá cần được tách riêng.
     \item \textbf{Failure overlap và score correlation gợi ý khả năng fusion}, nhưng đây mới là bằng chứng gián tiếp; cần thí nghiệm calibration/fusion riêng trước khi kết luận.
 \end{itemize}
 
@@ -48,7 +48,7 @@ Kết quả mong muốn của giai đoạn này là một ma trận model $\time
 
 Về lưu trữ kết quả, pipeline nên tiếp tục dùng format thống nhất như \texttt{results.pkl}, nhưng cần mở rộng metadata để phục vụ reproducibility: tên dataset/split, số utterance, checksum hoặc version nếu có, mode tính EER, model identifier, checkpoint source, ngày chạy và ghi chú về training data nếu biết. Trường hợp AASIST3 trong báo cáo này cho thấy cần tách rõ \textbf{paper architecture} và \textbf{public checkpoint behavior}: một checkpoint public bị deprecated hoặc không trùng paper weights không nên được dùng để kết luận về năng lực của kiến trúc.
 
-Khi bản đồ đủ rộng hơn, baseline cho Thực tập 2 hoặc luận văn nên được chọn theo nhiều tiêu chí cùng lúc:
+Khi bản đồ đủ rộng hơn, baseline cho Thực tập 2 hoặc Luận văn nên được chọn theo nhiều tiêu chí cùng lúc:
 
 \begin{itemize}
     \item \textbf{Hiệu năng tổng thể:} EER trung bình tốt trên nhiều dataset, không chỉ một benchmark sạch.
@@ -62,10 +62,11 @@ Theo pilot benchmark hiện tại, XLS-R+Nes2Net và XLS-R+AASIST là hai baseli
 
 \section{Hướng cải thiện ở mức ý niệm và kế hoạch tiếp theo}
 
-Dựa trên pilot benchmark hiện tại, có thể đề xuất một số hướng cải thiện ở mức ý niệm, nhưng các hướng này cần được xem là \textbf{candidate directions} để kiểm chứng sau khi bản đồ dữ liệu/kiến trúc rộng hơn. Không nên coi chúng là kết luận cuối cùng của Thực tập 1.
+Dựa trên pilot benchmark hiện tại, có thể đề xuất một số hướng cải thiện ở mức ý niệm, nhưng các hướng này cần được xem là \textbf{hướng ứng viên} để kiểm chứng sau khi bản đồ dữ liệu/kiến trúc rộng hơn. Không nên coi chúng là kết luận cuối cùng của Thực tập 1.
 
 \begin{itemize}
     \item \textbf{Codec-aware training và consistency regularization.} Kết quả ASV5 cho thấy C04/C07 làm EER của nhóm XLS-R tăng mạnh, vì vậy codec-aware augmentation hoặc score-level codec consistency là một hướng đáng thử. Tuy nhiên, hướng này cần được kiểm chứng trên nhiều codec/dataset hơn, đặc biệt với held-out codec hoặc CodecFake-style data, trước khi claim là giải pháp chính.
+    \item \textbf{Attack-aware hard mining.} Phân tích confident FP cho thấy A28 là FP bottleneck rõ nhất của hai mô hình XLS-R, còn A17/A26 là nhóm attack khó của họ AASIST. Do đó, ngoài codec-aware augmentation, training/curriculum nên có cơ chế mining các attack ID khó như A28 và A17 để tránh tối ưu quá mức cho tag attack thô hoặc codec condition.
     \item \textbf{Score-level fusion và calibration.} Failure overlap/correlation giữa các họ mô hình không hoàn toàn trùng nhau, gợi ý fusion có thể hữu ích. Nhưng fusion chỉ có ý nghĩa nếu đi kèm calibration nghiêm túc trên dev split và đánh giá cả EER lẫn calibration metrics.
     \item \textbf{Front-end/back-end ablation.} Kết quả Chương \ref{chap:experiment} cho thấy SSL front-end mạnh không tự đảm bảo robustness. Một hướng cần làm là giữ cùng front-end nhưng thay back-end, hoặc giữ back-end nhưng thay front-end, để tách đóng góp của representation, temporal modeling và checkpoint recipe.
     \item \textbf{Cross-domain và multilingual adaptation.} Nếu mở rộng sang MLAAD/SpeechFake/In-the-Wild-like data, cần kiểm tra liệu detector học cue phụ thuộc tiếng Anh hoặc dataset source hay học được cue spoof tổng quát.
@@ -73,6 +74,6 @@ Dựa trên pilot benchmark hiện tại, có thể đề xuất một số hư�
     \item \textbf{Phân tích định tính lỗi.} Các confident errors như trong \texttt{hard\_errors.csv} nên được nghe và soi spectrogram để hiểu cue âm học nào bị bỏ sót; phần này bổ sung cho EER và grouped metrics.
 \end{itemize}
 
-Kế hoạch tiếp theo có thể chia thành hai giai đoạn. Trong \textbf{Thực tập 2}, trọng tâm nên là mở rộng benchmark map: hoàn thiện parser/metadata cho nhiều dataset hơn, thêm các mô hình hiện đại có checkpoint reproducible, chạy lại pipeline thống nhất và xây bảng so sánh theo các trục dữ liệu/kiến trúc. Sau đó, trong \textbf{luận văn}, chọn baseline dựa trên bản đồ đã mở rộng, thiết kế một hướng cải thiện cụ thể và đánh giá bằng ablation đầy đủ. Theo cách này, đề xuất cải tiến cuối cùng sẽ xuất phát từ một bức tranh thực nghiệm đủ rộng, thay vì từ một pilot benchmark còn hẹp.
+Kế hoạch tiếp theo có thể chia thành hai giai đoạn. Trong \textbf{Thực tập 2}, trọng tâm nên là mở rộng benchmark map: hoàn thiện parser/metadata cho nhiều dataset hơn, thêm các mô hình hiện đại có checkpoint reproducible, chạy lại pipeline thống nhất, xây bảng so sánh theo các trục dữ liệu/kiến trúc và chọn baseline cuối cùng dựa trên bản đồ đã mở rộng. Sau đó, trong \textbf{Luận văn}, hiện thực một hướng cải thiện cụ thể trên baseline đã chọn, tối ưu training/inference recipe và đánh giá bằng ablation study đầy đủ. Theo cách này, đề xuất cải tiến cuối cùng sẽ xuất phát từ một bức tranh thực nghiệm đủ rộng, còn phần Luận văn tập trung vào hiện thực và kiểm chứng cải tiến.
 
-Tóm lại, đóng góp chính của Thực tập 1 không nằm ở việc chốt ngay một phương pháp mới, mà ở việc đặt nền móng cho một bản đồ SDD có hệ thống: pipeline reproduce, benchmark ban đầu, các failure mode sơ bộ và tiêu chí mở rộng. Đây là bước cần thiết trước khi chọn baseline và phát triển một cải tiến kiến trúc hoặc training recipe có cơ sở vững hơn.
+Tóm lại, đóng góp chính của Thực tập 1 không nằm ở việc chốt ngay một phương pháp mới, mà ở việc đặt nền móng cho một bản đồ SDD có hệ thống: pipeline reproduce, benchmark ban đầu, các failure mode sơ bộ và tiêu chí mở rộng. Đây là bước cần thiết để Thực tập 2 có thể chọn baseline trên cơ sở rộng hơn, trước khi Luận văn phát triển một cải tiến kiến trúc hoặc training recipe có cơ sở vững hơn.

@@ -466,8 +466,82 @@ def patch_fairseq_for_python312(fairseq_dir: Path) -> None:
         n_replacements = patch_dataclass_mutable_defaults(patch_target)
         if n_replacements:
             print(f"patched {n_replacements} fairseq dataclass defaults for Python 3.12: {patch_target}")
+    patch_fairseq_transformer_config_for_python312(fairseq_dir)
+    validate_fairseq_dataclass_patch(fairseq_dir)
     patch_fairseq_hydra_init_for_default_factory(fairseq_dir)
     patch_fairseq_numpy_aliases(fairseq_dir)
+
+
+def patch_fairseq_transformer_config_for_python312(fairseq_dir: Path) -> None:
+    """Patch known TransformerConfig nested dataclass defaults.
+
+    Some repo-pinned fairseq copies differ slightly from the pinned upstream
+    snapshot. Keep this explicit fallback so the XLS-R loader cannot miss the
+    exact fields that Python 3.12 rejects during fairseq import.
+    """
+    path = fairseq_dir / "fairseq" / "models" / "transformer" / "transformer_config.py"
+    if not path.exists():
+        return
+    text = path.read_text(encoding="utf-8")
+    original = text
+    replacements = {
+        "encoder: EncDecBaseConfig = EncDecBaseConfig()": (
+            "encoder: EncDecBaseConfig = field(default_factory=EncDecBaseConfig)"
+        ),
+        "decoder: DecoderConfig = DecoderConfig()": (
+            "decoder: DecoderConfig = field(default_factory=DecoderConfig)"
+        ),
+        "quant_noise: QuantNoiseConfig = QuantNoiseConfig()": (
+            "quant_noise: QuantNoiseConfig = field(default_factory=QuantNoiseConfig)"
+        ),
+    }
+    for old, new in replacements.items():
+        text = text.replace(old, new)
+        text = text.replace(f"field(default={old.split(' = ', 1)[1]})", new.split(" = ", 1)[1])
+
+    if text != original:
+        if "from dataclasses import" in text:
+            import_line = text.split("from dataclasses import", 1)[1].split("\n", 1)[0]
+            if "field" not in import_line:
+                import re
+                text = re.sub(
+                    r"^(from dataclasses import )([^\n]+)$",
+                    lambda m: m.group(1) + m.group(2).rstrip() + ", field",
+                    text,
+                    count=1,
+                    flags=re.MULTILINE,
+                )
+        else:
+            text = "from dataclasses import field\n" + text
+        path.write_text(text, encoding="utf-8")
+        print(f"patched fairseq TransformerConfig nested defaults for Python 3.12: {path}")
+
+
+def validate_fairseq_dataclass_patch(fairseq_dir: Path) -> None:
+    """Fail early if known fairseq mutable dataclass defaults remain."""
+    import re
+
+    checks = [
+        fairseq_dir / "fairseq" / "dataclass" / "configs.py",
+        fairseq_dir / "fairseq" / "models" / "transformer" / "transformer_config.py",
+    ]
+    bad_patterns = [
+        re.compile(r"^\s*\w+:\s+[\w.]+Config\s*=\s*[\w.]+Config\(\)\s*$", re.MULTILINE),
+        re.compile(r"^\s*\w+:\s+[\w.]+Config\s*=\s*field\(default=[\w.]+Config\(\)\)\s*$", re.MULTILINE),
+    ]
+    leftovers = []
+    for path in checks:
+        if not path.exists():
+            continue
+        text = path.read_text(encoding="utf-8")
+        for pattern in bad_patterns:
+            for match in pattern.finditer(text):
+                leftovers.append(f"{path}: {match.group(0).strip()}")
+    if leftovers:
+        raise RuntimeError(
+            "fairseq Python 3.12 dataclass patch incomplete; mutable defaults remain:\n"
+            + "\n".join(leftovers[:20])
+        )
 
 
 def patch_fairseq_hydra_init_for_default_factory(fairseq_dir: Path) -> None:
